@@ -24,15 +24,23 @@ if __name__ == '__main__':
     server_socket.listen(5)
     while True:
 
-
-
-
-
         # 等待客户端连接
         client_socket, addr = server_socket.accept()
         # 接收客户端发送的数据
-        data = client_socket.recv(1024)
-        print(data.decode('utf-8'))
+        data = client_socket.recv(1024).decode('utf-8')
+        print(data)
+        # 解封装
+        lines = data.strip().split('\r\n')
+        headers = {}
+        method, path, protocol = lines[0].split(' ')
+        for line in lines[1:]:
+            key, value = line.split(': ')
+            headers[key] = value
+        headers['method'] = method
+        headers['path'] = path
+        headers['protocol'] = protocol
+
+        print(headers)  # 打印字典
 
         # 发送HTTP响应
         response = 'HTTP/1.0 200 OK\n\nThank you for connecting'
