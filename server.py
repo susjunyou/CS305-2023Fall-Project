@@ -23,6 +23,11 @@ if __name__ == '__main__':
     # 设置最大连接数
     server_socket.listen(5)
     while True:
+
+
+
+
+
         # 等待客户端连接
         client_socket, addr = server_socket.accept()
         # 接收客户端发送的数据
