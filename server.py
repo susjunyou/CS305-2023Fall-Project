@@ -31,18 +31,28 @@ def parse_http_request(sock):
     return {"method": method, "path": path, "version": version, "headers": headers, "body": body}
 
 
+def create_http_response(status_code, status_text, headers, body):
+    response = f"HTTP/1.1 {status_code} {status_text}\r\n"
+    for key, value in headers.items():
+        response += f"{key}: {value}\r\n"
+    response += "\r\n"
+    response += body
+    return response
+
+
 def listening(server_socket):
     while True:
         # 等待客户端连接
         client_socket, addr = server_socket.accept()
-
         # 接收客户端发送的数据
         # this request is a dictionary
         request = parse_http_request(client_socket)
-        print(request)
+        print("request", request)
 
         # 发送HTTP响应
-        response = 'HTTP/1.1 200 OK\n\nThank you for connecting'
+        response = create_http_response(status_code=200, status_text="OK", headers={"Content-Type": "text/html"},
+                                        body="Hello World")
+        print("response", response)
         client_socket.send(response.encode('utf-8'))
 
         # 关闭连接
