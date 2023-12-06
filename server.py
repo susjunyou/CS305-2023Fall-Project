@@ -12,26 +12,49 @@ def my_parser():
     return host, port
 
 
+def parse_http_request(sock):
+    data = ""
+    while not data.endswith("\r\n\r\n"):
+        data += sock.recv(1).decode()
+    lines = data.split("\r\n")
+    method, path, version = lines[0].split(" ")
+    headers = {}
+    for line in lines[1:]:
+        if line:
+            key, value = line.split(": ", 1)
+            headers[key] = value
+    body = ""
+    if "Content-Length" in headers:
+        length = int(headers["Content-Length"])
+        while len(body) < length:
+            body += sock.recv(1).decode()
+    return {"method": method, "path": path, "version": version, "headers": headers, "body": body}
+
+
+def listening(server_socket):
+    while True:
+        # 等待客户端连接
+        client_socket, addr = server_socket.accept()
+
+        # 接收客户端发送的数据
+        # this request is a dictionary
+        request = parse_http_request(client_socket)
+        print(request)
+
+        # 发送HTTP响应
+        response = 'HTTP/1.1 200 OK\n\nThank you for connecting'
+        client_socket.send(response.encode('utf-8'))
+
+        # 关闭连接
+        client_socket.close()
+
+
 if __name__ == '__main__':
     host, port = my_parser()
-    # print(host, port)
-
     # 创建一个 socket 对象
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # 绑定到指定的端口
     server_socket.bind((host, int(port)))
     # 设置最大连接数
     server_socket.listen(5)
-    while True:
-        # 等待客户端连接
-        client_socket, addr = server_socket.accept()
-        # 接收客户端发送的数据
-        data = client_socket.recv(1024)
-        print(data.decode('utf-8'))
-
-        # 发送HTTP响应
-        response = 'HTTP/1.0 200 OK\n\nThank you for connecting'
-        client_socket.send(response.encode('utf-8'))
-
-        # 关闭连接
-        client_socket.close()
+    listening(server_socket)
