@@ -15,8 +15,11 @@ def my_parser():
 
 def parse_http_request(sock):
     data = ""
-    while not data.endswith("\r\n\r\n"):
-        data += sock.recv(1).decode()
+    while True:
+        chunk = sock.recv(1).decode()
+        data += chunk
+        if data.endswith("\r\n\r\n"):
+            break
     lines = data.split("\r\n")
     method, path, version = lines[0].split(" ")
     headers = {}
@@ -27,7 +30,6 @@ def parse_http_request(sock):
     body = ""
     if "Content-Length" in headers:
         length = int(headers["Content-Length"])
-        # 使用带有指定内容长度的 recv
         body = sock.recv(length).decode()
     return {"method": method, "path": path, "version": version, "headers": headers, "body": body}
 
@@ -59,6 +61,8 @@ def handle_client(client_socket):
     while True:
         try:
             request = parse_http_request(client_socket)
+            if request['method'] is None:
+                break
             print("request", request)
             status_code, status_text = get_status(request)
             headers = get_headers(request)
@@ -72,7 +76,9 @@ def handle_client(client_socket):
         except Exception as e:
             print(f"Error handling request: {e}")
             break
+        # 不知道为什么不关闭连接，test_Demo中的代码中的 Get和 Post都不会停止运行，这不符合持久性连接
         client_socket.close()
+        break
     # print("Thread ended for client:", threading.current_thread().ident)
 
 
