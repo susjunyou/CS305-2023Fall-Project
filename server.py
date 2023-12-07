@@ -1,4 +1,5 @@
 import argparse
+import base64
 import socket
 import threading
 
@@ -44,16 +45,38 @@ def create_http_response(status_code, status_text, headers, body):
 
 
 def get_status(request):
-    return 200, "OK"
+    status_code, status_text = 200, 'OK'
+    headers = request['headers']
+    body = request['body']
+    if 'Authorization' in headers:
+        username, password = get_Authorization(request)
+        if username in user_auth and user_auth[username] == password:
+            status_code, status_text = 200, 'OK'
+        else:
+            status_code, status_text = 401, 'Unauthorized'
+    else:
+        status_code, status_text = 401, 'Unauthorized'
+    return status_code, status_text
 
 
-def get_headers(request):
+def get_headers(request, status_code):
     headers = {"Content-Type": "text/html"}
+    if status_code == 401:
+        headers['WWW-Authenticate'] = 'Basic realm="Authorization Required"'
     return headers
 
 
 def get_body(request):
     return "Hello World"
+
+
+def get_Authorization(request):
+    auth_header = request['headers']['Authorization']
+    encoded_credentials = auth_header.split(' ')[1]  # 获取 Basic 后面的编码字符串
+    decoded_credentials = base64.b64decode(encoded_credentials).decode('utf-8')
+    username, password = decoded_credentials.split(':')
+    # print(f"Username: {username}, Password: {password}")
+    return username, password
 
 
 def handle_client(client_socket):
@@ -65,7 +88,7 @@ def handle_client(client_socket):
                 break
             print("request", request)
             status_code, status_text = get_status(request)
-            headers = get_headers(request)
+            headers = get_headers(request, status_code)
             body = get_body(request) if request['method'] != 'HEAD' else ''
             response = create_http_response(status_code=status_code, status_text=status_text,
                                             headers=headers, body=body)
@@ -115,5 +138,7 @@ def start_server(host, port):
 
 
 if __name__ == '__main__':
+    # 用户认证
+    user_auth = {'client1': '123'}
     host, port = my_parser()
     start_server(host, port)
