@@ -2,6 +2,8 @@ import argparse
 import base64
 import socket
 import threading
+import os
+import pathlib
 
 
 def my_parser():
@@ -50,6 +52,16 @@ class HttpServer:
             body = sock.recv(length).decode()
         return {"method": method, "path": path, "version": version, "headers": headers, "body": body}
 
+    def generate_html(self, path):
+        file_list = []
+        html = f'<html>\n<h1>Directory listing for/{path}</h1>\n<body>\n<ul>\n'
+        for file in os.listdir(path):
+            file_list.append(file)
+            file_path = os.path.join(path, file)
+            html += '<li><a href="{}">{}</a></li>\n'.format(file_path, file)
+        html += '</ul>\n</body>\n</html>'
+        return html, file_list
+
     def create_http_response(self, status_code, status_text, headers, body):
         response = f"HTTP/1.1 {status_code} {status_text}\r\n"
         for key, value in headers.items():
@@ -72,15 +84,32 @@ class HttpServer:
             status_code, status_text = 401, 'Unauthorized'
         return status_code, status_text
 
-    def get_headers(self, request, status_code):
-        headers = {"Content-Type": "text/html", "Content-Length": "0", "Connection":"keep-alive"}
-
+    def get_headers(self, request, status_code, body):
+        headers = {"Content-Type": "text/html", "Content-Length": len(body.encode('utf-8'))}
+        headers['Connection'] = 'keep-alive'
         if status_code == 401:
             headers['WWW-Authenticate'] = 'Basic realm="Authorization Required"'
         return headers
 
     def get_body(self, request):
-        return "Hello World"
+        if request['method'] != 'GET':
+            return 405, "Method Not Allowed"
+        root_path = "data"
+        path = request['path'].split('?')[0]
+        paths = path.split("/")
+        for path in paths:
+            root_path = os.path.join(root_path, path)
+        if os.path.isfile(root_path):
+            print(open(root_path, 'rb').read().decode('utf-8'))
+            return 200, open(root_path, 'rb').read().decode('utf-8')
+        if not os.path.exists(root_path):
+            return 404, 'Not Found'  # 4001: 没有这个文件夹
+        html, file_list = self.generate_html(root_path)
+        if request['path'].split('?')[-1] == 'SUSTech-HTTP=0':
+            return 200, html
+        if request['path'].split('?')[-1] == 'SUSTech-HTTP=1':
+            return 200, '[ "' + '", "'.join(file_list) + '"]'
+        return 400, "Bad Request"
 
     def get_authorization(self, request):
         auth_header = request['headers']['Authorization']
@@ -91,29 +120,31 @@ class HttpServer:
         return username, password
 
     def handle_client(self, client_socket):
-        print("Thread started for client:", threading.current_thread().ident)
         while True:
-            try:
-                request = self.parse_http_request(client_socket)
-                if request['method'] is None:
-                    break
-                print("request", request)
-                status_code, status_text = self.get_status(request)
-                headers = self.get_headers(request, status_code)
-                body = self.get_body(request) if request['method'] != 'HEAD' else ''
-                response = self.create_http_response(status_code=status_code, status_text=status_text,
-                                                     headers=headers, body="")
-                print("response", response)
-                client_socket.sendall(response.encode())
-                if request['headers'].get('Connection').lower() == 'close':
-                    break
-            except Exception as e:
-                print(f"Error handling request: {e}")
+            # try:
+            request = self.parse_http_request(client_socket)
+            if request['method'] is None:
                 break
-            # 不知道为什么不关闭连接，test_Demo中的代码中的 Get和 Post都不会停止运行，这不符合持久性连接
+            print("request", request)
+            status_code, status_text = self.get_status(request)
+            code,body = self.get_body(request) if request['method'] != 'HEAD' else ''
+            if code == 404:
+                status_code, status_text = 404, 'Not Found'
+            if code == 405:
+                status_code, status_text = 405, 'Method Not Allowed'
+            if code == 400:
+                status_code, status_text = 400, 'Bad Request'
+            headers = self.get_headers(request, status_code, body)
+            response = self.create_http_response(status_code=status_code, status_text=status_text,
+                                                 headers=headers, body=body)
+            print("response", response)
+            client_socket.sendall(response.encode())
+            if request['headers'].get('Connection').lower() == 'close':
+                break
+            # except Exception as e:
+            #     print(f"Error handling request: {e}")
+            #     break
         client_socket.close()
-        # break
-        print("Thread ended for client:", threading.current_thread().ident)
 
 
 if __name__ == '__main__':
