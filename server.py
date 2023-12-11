@@ -20,6 +20,8 @@ class HttpServer:
     def __init__(self, host, port):
         self.host = host
         self.port = port
+        self.username = ''
+        self.password = ''
 
     def start_server(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -115,9 +117,9 @@ class HttpServer:
         auth_header = request['headers']['Authorization']
         encoded_credentials = auth_header.split(' ')[1]  # 获取 Basic 后面的编码字符串
         decoded_credentials = base64.b64decode(encoded_credentials).decode('utf-8')
-        username, password = decoded_credentials.split(':')
+        self.username, self.password = decoded_credentials.split(':')
         # print(f"Username: {username}, Password: {password}")
-        return username, password
+        return self.username, self.password
 
     def handle_client(self, client_socket):
         while True:
@@ -127,7 +129,7 @@ class HttpServer:
                 break
             print("request", request)
             status_code, status_text = self.get_status(request)
-            code,body = self.get_body(request) if request['method'] != 'HEAD' else ''
+            code, body = self.get_body(request) if request['method'] != 'HEAD' else ''
             if code == 404:
                 status_code, status_text = 404, 'Not Found'
             if code == 405:
