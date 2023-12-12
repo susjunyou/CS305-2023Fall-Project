@@ -116,7 +116,7 @@ class HttpServer:
             post_path = parameter.split('=')[1]
             post_user = post_path.split("/")[0]
             if post_user != self.username:
-                return 403, ''  # 没body的吧
+                return 403, 'Forbidden'  # 没body的吧
             root_path = "data"
             root_path = os.path.join(root_path, post_user)
             # 还要加入 filename, body 还不会解析
