@@ -9,6 +9,7 @@ import time
 user_auth = {}
 local_cookie = {}
 cookie_time = {}
+chunk_size = 1024
 
 
 def my_parser():
@@ -27,6 +28,7 @@ class HttpServer:
         self.port = port
         self.username = ''
         self.password = ''
+        self.is_chunked = False
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
         # 设置最大连接数
@@ -156,8 +158,13 @@ class HttpServer:
             for path in paths:
                 root_path = os.path.join(root_path, path)
             if os.path.isfile(root_path):
-                print(open(root_path, 'rb').read().decode('utf-8'))
-                return 200, open(root_path, 'rb').read().decode('utf-8')
+                if request['path'].split('?')[-1] == 'chunked=1':
+                    # chunk transfer
+                    return 200, open(root_path, 'rb').read().decode('utf-8')
+                else:
+                    # simple transfer
+                    print(open(root_path, 'rb').read().decode('utf-8'))
+                    return 200, open(root_path, 'rb').read().decode('utf-8')
             if not os.path.exists(root_path):
                 return 404, 'Not Found'
             html, file_list = self.generate_html(root_path)
