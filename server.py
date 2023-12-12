@@ -3,7 +3,11 @@ import base64
 import socket
 import threading
 import os
+import uuid
 import pathlib
+
+user_auth = {}
+local_cookies = {}
 
 
 def my_parser():
@@ -22,15 +26,15 @@ class HttpServer:
         self.port = port
         self.username = ''
         self.password = ''
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.bind((self.host, self.port))
+        # 设置最大连接数
+        self.server_socket.listen(7)
 
     def start_server(self):
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind((self.host, self.port))
-        # 设置最大连接数
-        server_socket.listen(7)
         while True:
-            client_socket, addr = server_socket.accept()
-            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            client_socket, addr = self.server_socket.accept()
+            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             client_handler = threading.Thread(target=self.handle_client, args=(client_socket,))
             client_handler.start()
 
@@ -88,13 +92,21 @@ class HttpServer:
 
     def get_headers(self, request, status_code, body):
         headers = {"Content-Type": "text/html", "Content-Length": len(body.encode('utf-8'))}
+        if 'Cookie' not in request['headers']:
+            rand = uuid.uuid4()
+            headers['Set-Cookie'] = 'session=' + str(rand)
+            local_cookies[self.username] = headers['Set-Cookie']
+        else:
+            headers['Cookie'] = request['headers']['Cookie']
         headers['Connection'] = 'keep-alive'
         if status_code == 401:
             headers['WWW-Authenticate'] = 'Basic realm="Authorization Required"'
         return headers
 
     def get_body(self, request):
-        if request['method'] != 'GET':
+        if request['path'] == '/':
+            return 200, ''
+        if request['method'] != 'GET' and request['path'] != '/':
             return 405, "Method Not Allowed"
         root_path = "data"
         path = request['path'].split('?')[0]
@@ -105,7 +117,7 @@ class HttpServer:
             print(open(root_path, 'rb').read().decode('utf-8'))
             return 200, open(root_path, 'rb').read().decode('utf-8')
         if not os.path.exists(root_path):
-            return 404, 'Not Found'  # 4001: 没有这个文件夹
+            return 404, 'Not Found'
         html, file_list = self.generate_html(root_path)
         if request['path'].split('?')[-1] == 'SUSTech-HTTP=0':
             return 200, html
@@ -118,7 +130,7 @@ class HttpServer:
         encoded_credentials = auth_header.split(' ')[1]  # 获取 Basic 后面的编码字符串
         decoded_credentials = base64.b64decode(encoded_credentials).decode('utf-8')
         self.username, self.password = decoded_credentials.split(':')
-        # print(f"Username: {username}, Password: {password}")
+        # print(f"Username: {self.username}, Password: {self.password}")
         return self.username, self.password
 
     def handle_client(self, client_socket):
@@ -129,7 +141,9 @@ class HttpServer:
                 break
             print("request", request)
             status_code, status_text = self.get_status(request)
-            code, body = self.get_body(request) if request['method'] != 'HEAD' else ''
+            body = ''
+            # if request['method'] == 'GET':
+            code, body = self.get_body(request)
             if code == 404:
                 status_code, status_text = 404, 'Not Found'
             if code == 405:
@@ -151,7 +165,7 @@ class HttpServer:
 
 if __name__ == '__main__':
     # 用户认证
-    user_auth = {'client1': '123'}
+    user_auth['client1'] = '123'
     host, port = my_parser()
     http_server = HttpServer(host, port)
     http_server.start_server()
