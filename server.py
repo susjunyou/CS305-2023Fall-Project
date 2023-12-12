@@ -77,18 +77,15 @@ class HttpServer:
         return response
 
     def get_status(self, request):
-        status_code, status_text = 200, 'OK'
         headers = request['headers']
-        body = request['body']
+        # 前提：认证对应账号
         if 'Authorization' in headers:
             username, password = self.get_authorization(request)
-            if username in user_auth and user_auth[username] == password:
-                status_code, status_text = 200, 'OK'
-            else:
-                status_code, status_text = 401, 'Unauthorized'
+            if username not in user_auth or user_auth[username] != password:
+                return 401, 'Unauthorized'
         else:
-            status_code, status_text = 401, 'Unauthorized'
-        return status_code, status_text
+            return 401, 'Unauthorized'
+        return 200, 'OK'
 
     def get_headers(self, request, status_code, body):
         headers = {"Content-Type": "text/html", "Content-Length": len(body.encode('utf-8'))}
@@ -104,26 +101,60 @@ class HttpServer:
         return headers
 
     def get_body(self, request):
+        # path = '/', 不需要 body
         if request['path'] == '/':
             return 200, ''
-        if request['method'] != 'GET' and request['path'] != '/':
-            return 405, "Method Not Allowed"
-        root_path = "data"
+        # '?' 前判断是 GET方法的 view/download, 还是 POST 方法的 upload/delete
         path = request['path'].split('?')[0]
+        print('path:', path)
         paths = path.split("/")
-        for path in paths:
-            root_path = os.path.join(root_path, path)
-        if os.path.isfile(root_path):
-            print(open(root_path, 'rb').read().decode('utf-8'))
-            return 200, open(root_path, 'rb').read().decode('utf-8')
-        if not os.path.exists(root_path):
-            return 404, 'Not Found'
-        html, file_list = self.generate_html(root_path)
-        if request['path'].split('?')[-1] == 'SUSTech-HTTP=0':
-            return 200, html
-        if request['path'].split('?')[-1] == 'SUSTech-HTTP=1':
-            return 200, '[ "' + '", "'.join(file_list) + '"]'
-        return 400, "Bad Request"
+        # 看起来 /upload /delete 和 POST 绑定
+        if path == '/upload' or path == '/delete':
+            if request['method'] != 'POST':
+                return 405, "Method Not Allowed"
+            parameter = request['path'].split('?')[-1]
+            post_path = parameter.split('=')[1]
+            post_user = post_path.split("/")[0]
+            if post_user != self.username:
+                return 403, ''  # 没body的吧
+            root_path = "data"
+            root_path = os.path.join(root_path, post_user)
+            # 还要加入 filename, body 还不会解析
+            if path == '/upload':
+                # upload 的文件夹是否存在
+                if not os.path.exists(root_path):
+                    return 404, 'Not Found'
+                file_name, file_content = self.get_file(request)
+                root_path = os.path.join(root_path, file_name)
+                print('root_path:', root_path)
+                print('file_content:', file_content)
+                open(root_path, 'w').write(file_content)
+                return 200, ''
+            if path == '/delete':
+                file_name = post_path.split("/")[1]
+                root_path = os.path.join(root_path, file_name)
+                # delete 的文件是否存在
+                if not os.path.isfile(root_path):
+                    return 404, 'Not Found'
+                os.remove(root_path)
+                return 200, ''
+        else:
+            if request['method'] != 'GET':
+                return 405, "Method Not Allowed"
+            root_path = "data"
+            for path in paths:
+                root_path = os.path.join(root_path, path)
+            if os.path.isfile(root_path):
+                print(open(root_path, 'rb').read().decode('utf-8'))
+                return 200, open(root_path, 'rb').read().decode('utf-8')
+            if not os.path.exists(root_path):
+                return 404, 'Not Found'
+            html, file_list = self.generate_html(root_path)
+            if request['path'].split('?')[-1] == 'SUSTech-HTTP=0':
+                return 200, html
+            if request['path'].split('?')[-1] == 'SUSTech-HTTP=1':
+                return 200, '[ "' + '", "'.join(file_list) + '"]'
+            return 400, "Bad Request"
 
     def get_authorization(self, request):
         auth_header = request['headers']['Authorization']
@@ -132,6 +163,11 @@ class HttpServer:
         self.username, self.password = decoded_credentials.split(':')
         # print(f"Username: {self.username}, Password: {self.password}")
         return self.username, self.password
+
+    def get_file(self, request):
+        file_name = request['body'].split('; filename="')[1].split('"')[0]
+        file_content = request['body'].split('"\r\n\r\n')[1].split('\r\n')[0]
+        return file_name, file_content
 
     def handle_client(self, client_socket):
         while True:
@@ -144,6 +180,8 @@ class HttpServer:
             body = ''
             # if request['method'] == 'GET':
             code, body = self.get_body(request)
+            if code == 403:
+                status_code, status_text = 403, 'Forbidden'
             if code == 404:
                 status_code, status_text = 404, 'Not Found'
             if code == 405:
