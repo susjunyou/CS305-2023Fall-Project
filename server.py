@@ -4,10 +4,11 @@ import socket
 import threading
 import os
 import uuid
-import pathlib
+import time
 
 user_auth = {}
-local_cookies = {}
+local_cookie = {}
+cookie_time = {}
 
 
 def my_parser():
@@ -83,6 +84,15 @@ class HttpServer:
             username, password = self.get_authorization(request)
             if username not in user_auth or user_auth[username] != password:
                 return 401, 'Unauthorized'
+        elif 'Cookie' in headers:
+            if headers['Cookie'] in local_cookie:
+                if local_cookie[self.username] == headers['Cookie']:
+                    if time.time() - cookie_time[self.username] > 60:
+                        return 401, 'Unauthorized'
+                    else:
+                        return 200, 'OK'
+                else:
+                    return 401, 'Unauthorized'
         else:
             return 401, 'Unauthorized'
         return 200, 'OK'
@@ -92,7 +102,8 @@ class HttpServer:
         if 'Cookie' not in request['headers']:
             rand = uuid.uuid4()
             headers['Set-Cookie'] = 'session=' + str(rand)
-            local_cookies[self.username] = headers['Set-Cookie']
+            local_cookie[self.username] = headers['Set-Cookie']
+            cookie_time[self.username] = time.time()
         else:
             headers['Cookie'] = request['headers']['Cookie']
         headers['Connection'] = 'keep-alive'
@@ -117,7 +128,7 @@ class HttpServer:
             post_user = post_path.split("/")[0]
             if post_user != self.username:
                 return 403, 'Forbidden'  # 没body的吧
-            root_path = "data"
+            root_path = "tmp"
             root_path = os.path.join(root_path, post_user)
             # 还要加入 filename, body 还不会解析
             if path == '/upload':
@@ -141,7 +152,7 @@ class HttpServer:
         else:
             if request['method'] != 'GET':
                 return 405, "Method Not Allowed"
-            root_path = "data"
+            root_path = "tmp"
             for path in paths:
                 root_path = os.path.join(root_path, path)
             if os.path.isfile(root_path):
