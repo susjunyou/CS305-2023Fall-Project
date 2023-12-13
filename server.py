@@ -105,6 +105,13 @@ class HttpServer:
         if self.is_chunked:
             headers['Transfer-Encoding'] = 'chunked'
         else:
+            # Content-Type 可能不止 text
+            if 'Range' in request['headers']:
+                ranges = request['headers']['Range'].split(',')
+                if len(ranges) != 1:
+                    headers = {"Content-Type": "multipart/byteranges; boundary=3d6b6a416f9b5",
+                               "Content-Length": len(body.encode('utf-8'))}
+
             headers = {"Content-Type": "text/html", "Content-Length": len(body.encode('utf-8'))}
         if 'Cookie' not in request['headers']:
             rand = uuid.uuid4()
@@ -131,12 +138,19 @@ class HttpServer:
             if request['method'] != 'POST':
                 return 405, "Method Not Allowed"
             parameter = request['path'].split('?')[-1]
-            post_path = parameter.split('=')[1]
-            post_user = post_path.split("/")[0]
+            post_paths = parameter.split('=')[1].split("/")
+            post_user = post_paths[0]
+            '''post_user = ''
+            for path in post_paths:
+                if path != '':
+                    post_user = path
+                    break'''
             if post_user != self.username:
                 return 403, 'Forbidden'  # 没body的吧
             root_path = "tmp"
             root_path = os.path.join(root_path, post_user)
+            print(post_user)
+            print(root_path)
             # 还要加入 filename, body 还不会解析
             if path == '/upload':
                 # upload 的文件夹是否存在
@@ -146,15 +160,15 @@ class HttpServer:
                 root_path = os.path.join(root_path, file_name)
                 print('root_path:', root_path)
                 print('file_content:', file_content)
-                open(root_path, 'w').write(file_content)
+                # open(root_path, 'w').write(file_content)
                 return 200, ''
             if path == '/delete':
-                file_name = post_path.split("/")[1]
+                file_name = post_paths[-1]
                 root_path = os.path.join(root_path, file_name)
                 # delete 的文件是否存在
                 if not os.path.isfile(root_path):
                     return 404, 'Not Found'
-                os.remove(root_path)
+                # os.remove(root_path)
                 return 200, ''
         else:
             if request['method'] != 'GET':
@@ -169,6 +183,9 @@ class HttpServer:
                     return 200, root_path
                 else:
                     # simple transfer
+                    if 'Range' in request['headers']:
+                        code1, body1 = self.breakpoint_transmission(request, root_path)
+                        return code1, body1
                     print(open(root_path, 'rb').read().decode('utf-8'))
                     return 200, open(root_path, 'rb').read().decode('utf-8')
             if not os.path.exists(root_path):
@@ -179,6 +196,41 @@ class HttpServer:
             if request['path'].split('?')[-1] == 'SUSTech-HTTP=1':
                 return 200, '[ "' + '", "'.join(file_list) + '"]'
             return 400, "Bad Request"
+
+    def breakpoint_transmission(self, request, file_path):
+        body = b''
+        ranges = request['headers']['Range'].split(',')
+        if len(ranges) == 1:
+            start, end = map(int, ranges[0].split('-'))
+            if start >= end or end >= os.path.getsize(file_path):
+                return 416, 'Range Not Satisfiable'
+            with open(file_path, 'rb') as file:
+                file.seek(start)
+                body = file.read(end - start + 1)
+        else:
+            responses = []
+            boundary = '3d6b6a416f9b5'
+            for bk_range in ranges:
+                start, end = map(int, bk_range.split('-'))
+                if start >= end or end >= os.path.getsize(file_path):
+                    return 416, 'Range Not Satisfiable'
+                with open(file_path, 'rb') as file:
+                    file.seek(start)
+                    data = file.read(end - start + 1)
+                    response = {
+                        'Content-Type': f'text/html',
+                        'Content-Range': f'bytes {start}-{end}/{os.path.getsize(file_path)}',
+                        'body': data
+                    }
+                    responses.append(response)
+            for resp in responses:
+                body += f"--{boundary}\r\n".encode()
+                body += f"{'Content-Type'}: {resp['Content-Type']}\r\n".encode()
+                body += f"{'Content-Range'}: {resp['Content-Range']}\r\n".encode()
+                body += b"\r\n"
+                body += resp['body'] + b"\r\n"
+            body += f"--{boundary}--\r\n".encode()
+        return 206, body.decode('utf-8')
 
     def get_authorization(self, request):
         auth_header = request['headers']['Authorization']
@@ -212,6 +264,8 @@ class HttpServer:
                     status_code, status_text = 405, 'Method Not Allowed'
                 if code == 400:
                     status_code, status_text = 400, 'Bad Request'
+                if code == 206:
+                    status_code, status_text = 206, 'Partial Content'
                 headers = self.get_headers(request, status_code, body)
                 if self.is_chunked:
                     # send headers
