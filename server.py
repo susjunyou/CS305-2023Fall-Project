@@ -9,7 +9,7 @@ import time
 user_auth = {}
 local_cookie = {}
 cookie_time = {}
-chunk_size = 1024
+chunk_size = 2
 
 
 def my_parser():
@@ -29,6 +29,7 @@ class HttpServer:
         self.username = ''
         self.password = ''
         self.is_chunked = False
+        self.is_ranges = False
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
         # 设置最大连接数
@@ -100,7 +101,11 @@ class HttpServer:
         return 200, 'OK'
 
     def get_headers(self, request, status_code, body):
-        headers = {"Content-Type": "text/html", "Content-Length": len(body.encode('utf-8'))}
+        headers = {}
+        if self.is_chunked:
+            headers['Transfer-Encoding'] = 'chunked'
+        else:
+            headers = {"Content-Type": "text/html", "Content-Length": len(body.encode('utf-8'))}
         if 'Cookie' not in request['headers']:
             rand = uuid.uuid4()
             headers['Set-Cookie'] = 'session=' + str(rand)
@@ -160,7 +165,8 @@ class HttpServer:
             if os.path.isfile(root_path):
                 if request['path'].split('?')[-1] == 'chunked=1':
                     # chunk transfer
-                    return 200, open(root_path, 'rb').read().decode('utf-8')
+                    self.is_chunked = True
+                    return 200, root_path
                 else:
                     # simple transfer
                     print(open(root_path, 'rb').read().decode('utf-8'))
@@ -189,33 +195,52 @@ class HttpServer:
 
     def handle_client(self, client_socket):
         while True:
-            # try:
-            request = self.parse_http_request(client_socket)
-            if request['method'] is None:
+            try:
+                request = self.parse_http_request(client_socket)
+                if request['method'] is None:
+                    break
+                print("request", request)
+                status_code, status_text = self.get_status(request)
+                body = ''
+                # if request['method'] == 'GET':
+                code, body = self.get_body(request)
+                if code == 403:
+                    status_code, status_text = 403, 'Forbidden'
+                if code == 404:
+                    status_code, status_text = 404, 'Not Found'
+                if code == 405:
+                    status_code, status_text = 405, 'Method Not Allowed'
+                if code == 400:
+                    status_code, status_text = 400, 'Bad Request'
+                headers = self.get_headers(request, status_code, body)
+                if self.is_chunked:
+                    # send headers
+                    client_socket.sendall(
+                        self.create_http_response(status_code=status_code, status_text=status_text, headers=headers,
+                                                  body="").encode())
+                    # send body by chunk( this body actually is a file path )
+                    with open(body, 'rb') as f:
+                        while True:
+                            data = f.read(chunk_size)
+                            if not data:
+                                break
+                            client_socket.sendall(f"{len(data):X}\r\n".encode())
+                            client_socket.sendall(data)
+                            client_socket.sendall(b"\r\n")
+                            if len(data) < chunk_size:
+                                break
+                        client_socket.sendall(b"0\r\n\r\n")
+                        self.is_chunked = False
+                else:
+                    response = self.create_http_response(status_code=status_code, status_text=status_text,
+                                                         headers=headers, body=body)
+                    print("response", response)
+                    client_socket.sendall(response.encode())
+                if request['headers'].get('Connection').lower() == 'close':
+                    break
+            except Exception as e:
+                print(f"Error handling request: {e}")
                 break
-            print("request", request)
-            status_code, status_text = self.get_status(request)
-            body = ''
-            # if request['method'] == 'GET':
-            code, body = self.get_body(request)
-            if code == 403:
-                status_code, status_text = 403, 'Forbidden'
-            if code == 404:
-                status_code, status_text = 404, 'Not Found'
-            if code == 405:
-                status_code, status_text = 405, 'Method Not Allowed'
-            if code == 400:
-                status_code, status_text = 400, 'Bad Request'
-            headers = self.get_headers(request, status_code, body)
-            response = self.create_http_response(status_code=status_code, status_text=status_text,
-                                                 headers=headers, body=body)
-            print("response", response)
-            client_socket.sendall(response.encode())
-            if request['headers'].get('Connection').lower() == 'close':
-                break
-            # except Exception as e:
-            #     print(f"Error handling request: {e}")
-            #     break
         client_socket.close()
 
 
