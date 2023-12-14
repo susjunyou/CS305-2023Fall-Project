@@ -139,18 +139,15 @@ class HttpServer:
                 return 405, "Method Not Allowed"
             parameter = request['path'].split('?')[-1]
             post_paths = parameter.split('=')[1].split("/")
-            post_user = post_paths[0]
-            '''post_user = ''
-            for path in post_paths:
-                if path != '':
-                    post_user = path
-                    break'''
+            post_user = ''
+            for parts in post_paths:
+                if parts != '':
+                    post_user = parts
+                    break
             if post_user != self.username:
                 return 403, 'Forbidden'  # 没body的吧
             root_path = "tmp"
             root_path = os.path.join(root_path, post_user)
-            print(post_user)
-            print(root_path)
             # 还要加入 filename, body 还不会解析
             if path == '/upload':
                 # upload 的文件夹是否存在
