@@ -5,6 +5,7 @@ import threading
 import os
 import uuid
 import time
+import mimetypes
 
 user_auth = {}
 local_cookie = {}
@@ -22,6 +23,12 @@ def my_parser():
     return host, port
 
 
+def initial_user():
+    user_auth['client1'] = '123'
+    user_auth['client2'] = '123'
+    user_auth['client3'] = '123'
+
+
 class HttpServer:
     def __init__(self, host, port):
         self.host = host
@@ -30,6 +37,7 @@ class HttpServer:
         self.file_name = ''
         self.file_path = ''
         self.file_type = ''
+        self.file_encoding = ''
         self.username = ''
         self.password = ''
         self.is_chunked = False
@@ -37,6 +45,16 @@ class HttpServer:
         self.server_socket.bind((self.host, self.port))
         # 设置最大连接数
         self.server_socket.listen(7)
+
+    def initial(self):
+        self.file_size = 0
+        self.file_name = ''
+        self.file_path = ''
+        self.file_type = ''
+        self.file_encoding = ''
+        self.username = ''
+        self.password = ''
+        self.is_chunked = False
 
     def start_server(self):
         while True:
@@ -103,6 +121,10 @@ class HttpServer:
             return 401, 'Unauthorized'
         return 200, 'OK'
 
+    def get_file_type(self, path):
+        mime_type, encoding = mimetypes.guess_type(path)
+        return mime_type, encoding
+
     def get_headers(self, request, status_code, body):
         headers = {}
         if self.is_chunked:
@@ -115,12 +137,12 @@ class HttpServer:
                     headers = {"Content-Type": "multipart/byteranges; boundary=3d6b6a416f9b5",
                                "Content-Length": len(body.encode('utf-8'))}
                 else:
-                    headers = {"Content-Type": "text/html",
+                    headers = {"Content-Type": self.file_type,
                                "Content-Range": 'bytes ' + str(ranges[0]) + "/" + str(self.file_size),
                                "Content-Length": len(body.encode('utf-8'))}
                     self.file_size = 0
             else:
-                headers = {"Content-Type": "text/html", "Content-Length": len(body.encode('utf-8'))}
+                headers = {"Content-Type": self.file_type, "Content-Length": len(body.encode('utf-8'))}
         if 'Cookie' not in request['headers']:
             rand = uuid.uuid4()
             headers['Set-Cookie'] = 'session=' + str(rand)
@@ -131,6 +153,7 @@ class HttpServer:
         headers['Connection'] = 'keep-alive'
         if status_code == 401:
             headers['WWW-Authenticate'] = 'Basic realm="Authorization Required"'
+        headers['Date'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())
         return headers
 
     def get_body(self, request):
@@ -182,6 +205,7 @@ class HttpServer:
             for path in paths:
                 root_path = os.path.join(root_path, path)
             if os.path.isfile(root_path):
+                self.file_type, self.encoding = self.get_file_type(root_path)
                 if request['path'].split('?')[-1] == 'chunked=1':
                     # chunk transfer
                     self.is_chunked = True
@@ -197,8 +221,10 @@ class HttpServer:
                 return 404, 'Not Found'
             html, file_list = self.generate_html(root_path)
             if request['path'].split('?')[-1] == 'SUSTech-HTTP=0':
+                self.file_type = 'text/html'
                 return 200, html
             if request['path'].split('?')[-1] == 'SUSTech-HTTP=1':
+                self.file_type = 'text/html'
                 return 200, '[ "' + '", "'.join(file_list) + '"]'
             return 400, "Bad Request"
 
@@ -206,6 +232,7 @@ class HttpServer:
         body = b''
         ranges = request['headers']['Range'].split(',')
         if len(ranges) == 1:
+            # single range
             start, end = map(int, ranges[0].split('-'))
             if start >= end or end >= os.path.getsize(file_path):
                 return 416, 'Range Not Satisfiable'
@@ -214,6 +241,7 @@ class HttpServer:
                 file.seek(start)
                 body = file.read(end - start + 1)
         else:
+            # multi range
             responses = []
             boundary = uuid.uuid4().hex
             for bk_range in ranges:
@@ -224,7 +252,7 @@ class HttpServer:
                     file.seek(start)
                     data = file.read(end - start + 1)
                     response = {
-                        'Content-Type': f'text/html',
+                        'Content-Type': self.file_type,
                         'Content-Range': f'bytes {start}-{end}/{os.path.getsize(file_path)}',
                         'body': data
                     }
@@ -236,6 +264,7 @@ class HttpServer:
                 body += b"\r\n"
                 body += resp['body'] + b"\r\n"
             body += f"--{boundary}--\r\n".encode()
+
         return 206, body.decode('utf-8')
 
     def get_authorization(self, request):
@@ -305,8 +334,7 @@ class HttpServer:
 
 
 if __name__ == '__main__':
-    # 用户认证
-    user_auth['client1'] = '123'
+    initial_user()
     host, port = my_parser()
     http_server = HttpServer(host, port)
     http_server.start_server()
