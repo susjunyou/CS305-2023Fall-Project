@@ -26,10 +26,13 @@ class HttpServer:
     def __init__(self, host, port):
         self.host = host
         self.port = port
+        self.file_size = 0
+        self.file_name = ''
+        self.file_path = ''
+        self.file_type = ''
         self.username = ''
         self.password = ''
         self.is_chunked = False
-        self.is_ranges = False
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
         # 设置最大连接数
@@ -111,8 +114,13 @@ class HttpServer:
                 if len(ranges) != 1:
                     headers = {"Content-Type": "multipart/byteranges; boundary=3d6b6a416f9b5",
                                "Content-Length": len(body.encode('utf-8'))}
-
-            headers = {"Content-Type": "text/html", "Content-Length": len(body.encode('utf-8'))}
+                else:
+                    headers = {"Content-Type": "text/html",
+                               "Content-Range": 'bytes ' + str(ranges[0]) + "/" + str(self.file_size),
+                               "Content-Length": len(body.encode('utf-8'))}
+                    self.file_size = 0
+            else:
+                headers = {"Content-Type": "text/html", "Content-Length": len(body.encode('utf-8'))}
         if 'Cookie' not in request['headers']:
             rand = uuid.uuid4()
             headers['Set-Cookie'] = 'session=' + str(rand)
@@ -201,12 +209,13 @@ class HttpServer:
             start, end = map(int, ranges[0].split('-'))
             if start >= end or end >= os.path.getsize(file_path):
                 return 416, 'Range Not Satisfiable'
+            self.file_size = os.path.getsize(file_path)
             with open(file_path, 'rb') as file:
                 file.seek(start)
                 body = file.read(end - start + 1)
         else:
             responses = []
-            boundary = '3d6b6a416f9b5'
+            boundary = uuid.uuid4().hex
             for bk_range in ranges:
                 start, end = map(int, bk_range.split('-'))
                 if start >= end or end >= os.path.getsize(file_path):
