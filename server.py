@@ -114,21 +114,29 @@ class HttpServer:
         if http_request.is_chunked:
             headers['Transfer-Encoding'] = 'chunked'
             headers['Content-Type'] = http_request.file_type
+            headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                     time.gmtime(os.path.getmtime(http_request.file_path)))
         else:
             # Content-Type 可能不止 text
             if 'Range' in request['headers']:
                 ranges = request['headers']['Range'].split(',')
                 if len(ranges) != 1:
                     headers = {"Content-Type": "multipart/byteranges; boundary=3d6b6a416f9b5",
-                               "Content-Length": len(body.encode('utf-8'))}
+                               "Content-Length": len(body.encode('utf-8')),
+                               'Last-Modified': time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                              time.gmtime(os.path.getmtime(http_request.file_path)))}
                 else:
                     headers = {"Content-Type": http_request.file_type,
                                "Content-Range": 'bytes ' + str(ranges[0]) + "/" + str(http_request.file_size),
-                               "Content-Length": len(body.encode('utf-8'))}
+                               "Content-Length": len(body.encode('utf-8')),
+                               'Last-Modified': time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                              time.gmtime(os.path.getmtime(http_request.file_path)))}
                     http_request.file_size = 0
             else:
                 if http_request.file_type != '':
-                    headers = {"Content-Type": http_request.file_type, "Content-Length": len(body.encode('utf-8'))}
+                    headers = {"Content-Type": http_request.file_type, "Content-Length": len(body.encode('utf-8')),
+                               'Last-Modified': time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                              time.gmtime(os.path.getmtime(http_request.file_path)))}
         if 'Cookie' not in request['headers']:
             rand = uuid.uuid4()
             headers['Set-Cookie'] = 'session=' + str(rand)
