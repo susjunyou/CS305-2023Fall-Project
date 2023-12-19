@@ -178,10 +178,10 @@ class HttpServer:
         print('path:', path)
         paths = path.split("/")
         # 看起来 /upload /delete 和 POST 绑定
-        if path == '/upload' or path == '/delete':
+        if path == '/upload' or path == '/delete' or path == '/rename' or path == '/addDirectory':
             if request['method'] != 'POST':
                 return 405, "Method Not Allowed"
-            parameter = request['path'].split('?')[-1]
+            parameter = request['path'].split('?')[1]
             post_paths = parameter.split('=')[1].split("/")
             post_user = ''
             for parts in post_paths:
@@ -203,6 +203,14 @@ class HttpServer:
                 print('file_content:', file_content)
                 # open(root_path, 'w').write(file_content)
                 return 200, ''
+            if path == '/addDirectory':
+                if not os.path.exists(root_path):
+                    return 404, 'Not Found'
+                new_directory = request['path'].split('?')[2]
+                directory_name = new_directory.split('=')[1]
+                root_path = os.path.join(root_path, directory_name)
+                # os.mkdir(root_path)
+                return 200, ''
             if path == '/delete':
                 file_name = post_paths[-1]
                 root_path = os.path.join(root_path, file_name)
@@ -210,6 +218,14 @@ class HttpServer:
                 if not os.path.isfile(root_path):
                     return 404, 'Not Found'
                 # os.remove(root_path)
+                return 200, ''
+            if path == '/rename':
+                file_name = post_paths[-1]
+                # delete 的文件是否存在
+                if not os.path.isfile(os.path.join(root_path, file_name)):
+                    return 404, 'Not Found'
+                new_filename = request['path'].split('?')[2].split('=')[1]
+                # os.rename(os.path.join(root_path, file_name), os.path.join(root_path, new_filename))
                 return 200, ''
         else:
             if request['method'] != 'GET':
@@ -235,10 +251,10 @@ class HttpServer:
             if not os.path.exists(root_path):
                 return 404, 'Not Found'
             html, file_list = self.generate_html(root_path)
-            if request['path'].split('?')[-1] == 'SUSTech-HTTP=0':
+            if request['path'].split('?')[1] == 'SUSTech-HTTP=0':
                 http_request.file_type = 'text/html'
                 return 200, html
-            if request['path'].split('?')[-1] == 'SUSTech-HTTP=1':
+            if request['path'].split('?')[1] == 'SUSTech-HTTP=1':
                 http_request.file_type = 'text/html'
                 return 200, '[ "' + '", "'.join(file_list) + '"]'
             return 400, "Bad Request"
