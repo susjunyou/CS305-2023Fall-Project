@@ -12,6 +12,7 @@ from http_request import HttpRequest
 user_auth = {}
 local_cookie = {}
 cookie_time = {}
+max_file_size = 1024 * 1024 * 10
 chunk_size = 2
 
 
@@ -98,6 +99,7 @@ class HttpServer:
                     if time.time() - cookie_time[http_request.username] > 60:
                         return 401, 'Unauthorized'
                     else:
+                        cookie_time[http_request.username] = time.time()
                         return 200, 'OK'
                 else:
                     return 401, 'Unauthorized'
@@ -121,22 +123,26 @@ class HttpServer:
             if 'Range' in request['headers']:
                 ranges = request['headers']['Range'].split(',')
                 if len(ranges) != 1:
-                    headers = {"Content-Type": "multipart/byteranges; boundary=3d6b6a416f9b5",
-                               "Content-Length": len(body.encode('utf-8')),
-                               'Last-Modified': time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                              time.gmtime(os.path.getmtime(http_request.file_path)))}
+                    headers['Content-Type'] ='multipart/byteranges; boundary=3d6b6a416f9b5'
+                    headers['Content-Length'] = len(body.encode('utf-8'))
+                    headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                         time.gmtime(os.path.getmtime(http_request.file_path)))
                 else:
-                    headers = {"Content-Type": http_request.file_type,
-                               "Content-Range": 'bytes ' + str(ranges[0]) + "/" + str(http_request.file_size),
-                               "Content-Length": len(body.encode('utf-8')),
-                               'Last-Modified': time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                              time.gmtime(os.path.getmtime(http_request.file_path)))}
+                    headers['Content-Type'] = http_request.file_type
+                    headers['Content-Length'] = len(body.encode('utf-8'))
+                    headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                         time.gmtime(os.path.getmtime(http_request.file_path)))
+                    headers['Content-Range'] = 'bytes'+ str(ranges[0]) + "/" + str(http_request.file_size)
                     http_request.file_size = 0
             else:
-                if http_request.file_type != '':
-                    headers = {"Content-Type": http_request.file_type, "Content-Length": len(body.encode('utf-8')),
-                               'Last-Modified': time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                              time.gmtime(os.path.getmtime(http_request.file_path)))}
+                if http_request.file_path != '':
+                    headers['Content-Type'] = http_request.file_type
+                    headers['Content-Length'] = len(body.encode('utf-8'))
+                    headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                         time.gmtime(os.path.getmtime(http_request.file_path)))
+                else:
+                    headers['Content-Type'] = http_request.file_type
+                    headers['Content-Length'] = len(body.encode('utf-8'))
         if 'Cookie' not in request['headers']:
             rand = uuid.uuid4()
             headers['Set-Cookie'] = 'session=' + str(rand)
@@ -200,7 +206,9 @@ class HttpServer:
                 root_path = os.path.join(root_path, path)
             if os.path.isfile(root_path):
                 http_request.file_type, http_request.encoding = self.get_file_type(root_path)
-                if request['path'].split('?')[-1] == 'chunked=1':
+                http_request.file_path = root_path
+                http_request.file_size = os.path.getsize(root_path)
+                if request['path'].split('?')[-1] == 'chunked=1' or http_request.file_size >= max_file_size:
                     # chunk transfer
                     http_request.is_chunked = True
                     return 200, root_path
