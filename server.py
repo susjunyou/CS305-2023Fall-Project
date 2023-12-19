@@ -70,11 +70,17 @@ class HttpServer:
 
     def generate_html(self, path):
         file_list = []
+
         html = f'<html>\n<h1>Directory listing for/{path}</h1>\n<body>\n<ul>\n'
+
         for file in os.listdir(path):
             file_list.append(file)
             file_path = os.path.join(path, file)
-            html += '<li><a href="{}">{}</a></li>\n'.format(file_path, file)
+            url_path = file_path.replace('tmp\\', '/')
+            if os.path.isfile(file_path):
+                html += '<li><a href="{}">{}</a></li>\n'.format(url_path, file)
+            else:
+                html += '<li><a href="{}">{}</a></li>\n'.format(url_path+"?SUSTech-HTTP=0", file)
         html += '</ul>\n</body>\n</html>'
         return html, file_list
 
