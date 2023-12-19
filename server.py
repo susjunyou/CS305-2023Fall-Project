@@ -70,9 +70,16 @@ class HttpServer:
 
     def generate_html(self, path):
         file_list = []
-
-        html = f'<html>\n<h1>Directory listing for/{path}</h1>\n<body>\n<ul>\n'
-
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>CS305 Project File Manage Server</title>
+</head>
+<body>
+<h1>Directory listing for/{path}</h1>
+<ul>
+"""
         for file in os.listdir(path):
             file_list.append(file)
             file_path = os.path.join(path, file)
@@ -80,7 +87,7 @@ class HttpServer:
             if os.path.isfile(file_path):
                 html += '<li><a href="{}">{}</a></li>\n'.format(url_path, file)
             else:
-                html += '<li><a href="{}">{}</a></li>\n'.format(url_path+"?SUSTech-HTTP=0", file)
+                html += '<li><a href="{}">{}</a></li>\n'.format(url_path + "?SUSTech-HTTP=0", file)
         html += '</ul>\n</body>\n</html>'
         return html, file_list
 
@@ -129,23 +136,23 @@ class HttpServer:
             if 'Range' in request['headers']:
                 ranges = request['headers']['Range'].split(',')
                 if len(ranges) != 1:
-                    headers['Content-Type'] ='multipart/byteranges; boundary=3d6b6a416f9b5'
+                    headers['Content-Type'] = 'multipart/byteranges; boundary=3d6b6a416f9b5'
                     headers['Content-Length'] = len(body.encode('utf-8'))
                     headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                         time.gmtime(os.path.getmtime(http_request.file_path)))
+                                                             time.gmtime(os.path.getmtime(http_request.file_path)))
                 else:
                     headers['Content-Type'] = http_request.file_type
                     headers['Content-Length'] = len(body.encode('utf-8'))
                     headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                         time.gmtime(os.path.getmtime(http_request.file_path)))
-                    headers['Content-Range'] = 'bytes'+ str(ranges[0]) + "/" + str(http_request.file_size)
+                                                             time.gmtime(os.path.getmtime(http_request.file_path)))
+                    headers['Content-Range'] = 'bytes' + str(ranges[0]) + "/" + str(http_request.file_size)
                     http_request.file_size = 0
             else:
                 if http_request.file_path != '':
                     headers['Content-Type'] = http_request.file_type
                     headers['Content-Length'] = len(body.encode('utf-8'))
                     headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                         time.gmtime(os.path.getmtime(http_request.file_path)))
+                                                             time.gmtime(os.path.getmtime(http_request.file_path)))
                 else:
                     headers['Content-Type'] = http_request.file_type
                     headers['Content-Length'] = len(body.encode('utf-8'))
