@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="">
+<head>
+    <meta charset="UTF-8">
+    <title>User Login</title>
+    <style>
+        /* Simple styling for demonstration purposes */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        form {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        input[type="text"],
+        input[type="password"],
+        input[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            background-color: #007bff;
+            color: #fff;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+<form id="loginForm" onsubmit="login(event)">
+    <h2>User Login</h2>
+    <label for="username"></label><input type="text" id="username" placeholder="Username" required>
+    <label for="password"></label><input type="password" id="password" placeholder="Password" required>
+    <input type="submit" value="Login">
+</form>
+
+<script>
+    async function login(event) {
+        event.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        try {
+            const response = await fetch('http://localhost:8080/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Basic ' + btoa(username + ':' + password),
+                },
+                body: JSON.stringify({username, password}),
+            });
+
+            if (response.ok) {
+                alert('Login successful!');
+                window.location.href = 'http://localhost:8080/' + username + '?SUSTech-HTTP=0'; // Redirect to dashboard upon successful login
+
+            } else {
+                alert('Login failed. Please check your credentials.');
+            }
+        } catch (error) {
+            alert('An error occurred. Please try again later.');
+            console.error('Error:', error);
+        }
+    }
+</script>
+</body>
+</html>

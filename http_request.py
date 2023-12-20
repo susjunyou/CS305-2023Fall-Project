@@ -10,3 +10,4 @@ class HttpRequest:
         self.username = ''
         self.password = ''
         self.is_chunked = False
+        self.is_login = False

@@ -6,6 +6,7 @@ import os
 import uuid
 import time
 import mimetypes
+from jinja2 import Template
 
 from http_request import HttpRequest
 
@@ -13,7 +14,7 @@ user_auth = {}
 local_cookie = {}
 cookie_time = {}
 max_file_size = 1024 * 1024 * 10
-chunk_size = 2
+chunk_size = 1024 * 1024
 
 
 def my_parser():
@@ -70,33 +71,27 @@ class HttpServer:
 
     def generate_html(self, path):
         file_list = []
-        html = f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>CS305 Project File Manage Server</title>
-</head>
-<body>
-<h1>Directory listing for/{path}</h1>
-<ul>
-<li><a href="/?SUSTech-HTTP=0">/.</a></li>
-"""
-        print("path111",path)
+        with open('file_view.html', 'r') as f:
+            content = f.read()
+        html_template = Template(content)
+        files = ''
+        url_path = path.replace('tmp\\', '/')
+        # print("path111", path)
         if path != 'tmp\\':
-            url_path = path.replace('tmp\\', '/')
             parent_directory = os.path.abspath(os.path.join(url_path, os.pardir))[3:]
-            print("path222",parent_directory)
-            html += '<li><a href="{}">/..</a></li>\n'.format("/"+parent_directory + "?SUSTech-HTTP=0")
+            # print("path222", parent_directory)
+            files += '<li><a href="{}">/..</a></li>\n'.format("/" + parent_directory + "?SUSTech-HTTP=0")
         for file in os.listdir(path):
             file_list.append(file)
             file_path = os.path.join(path, file)
-            url_path = file_path.replace('tmp\\', '/')
+            url_path_1 = file_path.replace('tmp\\', '/')
             if os.path.isfile(file_path):
-                html += '<li><a href="{}">{}</a></li>\n'.format(url_path, file)
+                files += '<li><a href="{}" download>{}</a></li><button onclick="deleteFile()">Delete</button>\n'.format(
+                    url_path_1, file, url_path_1.replace('\\','/'))
             else:
-                html += '<li><a href="{}">{}</a></li>\n'.format(url_path + "?SUSTech-HTTP=0", file)
-        html += '</ul>\n</body>\n</html>'
-        return html, file_list
+                files += '<li><a href="{}">{}</a></li>\n'.format(url_path_1 + "?SUSTech-HTTP=0", file)
+        html_content = html_template.render(files=files, path=url_path)
+        return html_content, file_list
 
     def create_http_response(self, status_code, status_text, headers, body):
         response = f"HTTP/1.1 {status_code} {status_text}\r\n"
@@ -108,13 +103,30 @@ class HttpServer:
 
     def get_status(self, request, http_request):
         headers = request['headers']
+        if request['path'].lower().startswith('/login'):
+            return 410, 'login'
         # 前提：认证对应账号
         if 'Authorization' in headers:
             http_request.username, http_request.password = self.get_authorization(request, http_request)
             if http_request.username not in user_auth or user_auth[http_request.username] != http_request.password:
                 return 401, 'Unauthorized'
+            else:
+                http_request.is_login = True
+                return 200, 'OK'
         elif 'Cookie' in headers:
-            if headers['Cookie'] in local_cookie:
+            # 判断本地是否有这个cookies
+            cookies = headers['Cookie'].split('; ')
+            header_cookie = ''
+            for cookie in cookies:
+                if cookie.startswith('session='):
+                    header_cookie = cookie
+                    for key, value in local_cookie.items():
+                        if value == header_cookie:
+                            http_request.username = key
+            print("http_request.username", http_request.username)
+            if http_request.username == '':
+                return 408, 'Need login'
+            if header_cookie in local_cookie:
                 if local_cookie[http_request.username] == headers['Cookie']:
                     if time.time() - cookie_time[http_request.username] > 60:
                         return 401, 'Unauthorized'
@@ -123,6 +135,10 @@ class HttpServer:
                         return 200, 'OK'
                 else:
                     return 401, 'Unauthorized'
+            else:
+                # 第一次登录 但是这个cookie不是我们的server发送给浏览器的
+                # local_cookie[http_request.username] = headers['Cookie']
+                return 401, ''
         else:
             return 401, 'Unauthorized'
         return 200, 'OK'
@@ -163,11 +179,13 @@ class HttpServer:
                 else:
                     headers['Content-Type'] = http_request.file_type
                     headers['Content-Length'] = len(body.encode('utf-8'))
-        if 'Cookie' not in request['headers']:
+        if 'Cookie' not in request['headers'] or http_request.is_login:
             rand = uuid.uuid4()
             headers['Set-Cookie'] = 'session=' + str(rand)
             local_cookie[http_request.username] = headers['Set-Cookie']
+            print("local_cookie", local_cookie)
             cookie_time[http_request.username] = time.time()
+            print("cookie_time", cookie_time)
         else:
             headers['Cookie'] = request['headers']['Cookie']
         headers['Connection'] = 'keep-alive'
@@ -176,16 +194,22 @@ class HttpServer:
         headers['Date'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())
         return headers
 
-    def get_body(self, request, http_request):
+    def get_body(self, status_code, request, http_request):
+        if status_code == 410:
+            with open('login.html', 'r') as f:
+                return 200, f.read()
         # path = '/', 不需要 body
         if request['path'] == '/':
             return 200, ''
         # '?' 前判断是 GET方法的 view/download, 还是 POST 方法的 upload/delete
         path = request['path'].split('?')[0]
-        print('path:', path)
+        # print('path:', path)
         paths = path.split("/")
         # 看起来 /upload /delete 和 POST 绑定
         if path == '/upload' or path == '/delete' or path == '/rename' or path == '/addDirectory':
+            if status_code == 408:
+                with open('login.html', 'r') as f:
+                    return 408, f.read()
             if request['method'] != 'POST':
                 return 405, "Method Not Allowed"
             parameter = request['path'].split('?')[1]
@@ -206,8 +230,8 @@ class HttpServer:
                     return 404, 'Not Found'
                 file_name, file_content = self.get_file(request)
                 root_path = os.path.join(root_path, file_name)
-                print('root_path:', root_path)
-                print('file_content:', file_content)
+                # print('root_path:', root_path)
+                # print('file_content:', file_content)
                 open(root_path, 'w').write(file_content)
                 return 200, ''
             if path == '/addDirectory':
@@ -253,7 +277,7 @@ class HttpServer:
                     if 'Range' in request['headers']:
                         code1, body1 = self.breakpoint_transmission(request, root_path, http_request)
                         return code1, body1
-                    print(open(root_path, 'rb').read().decode('utf-8'))
+                    # print(open(root_path, 'rb').read().decode('utf-8'))
                     return 200, open(root_path, 'rb').read().decode('utf-8')
             if not os.path.exists(root_path):
                 return 404, 'Not Found'
@@ -329,7 +353,7 @@ class HttpServer:
             status_code, status_text = self.get_status(request, http_request)
             body = ''
             # if request['method'] == 'GET':
-            code, body = self.get_body(request, http_request)
+            code, body = self.get_body(status_code, request, http_request)
             if code == 403:
                 status_code, status_text = 403, 'Forbidden'
             if code == 404:
@@ -340,6 +364,8 @@ class HttpServer:
                 status_code, status_text = 400, 'Bad Request'
             if code == 206:
                 status_code, status_text = 206, 'Partial Content'
+            if code == 200:
+                status_code, status_text = 200, 'OK'
             headers = self.get_headers(request, status_code, body, http_request)
             if http_request.is_chunked:
                 # send headers

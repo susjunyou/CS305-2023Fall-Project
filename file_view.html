@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="">
+<head>
+    <meta charset="utf-8">
+    <title>CS305 Project File Manage Server</title>
+</head>
+<body>
+<h1>Directory listing for{{path}}</h1>
+<ul>
+    <li><a href="/?SUSTech-HTTP=0">/.</a></li>
+    {{files}}
+</ul>
+<input type="file" id="fileInput">
+<button onclick="uploadFile()">Upload</button>
+
+<script>
+    function uploadFile() {
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+        if (!file) {
+            alert("Please select a file first!");
+            return;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        fetch('/upload?path={{path}}', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => {
+                console.log('File uploaded:', response);
+            })
+            .catch(error => {
+                console.error('Error uploading file:', error);
+            });
+    }
+
+    function deleteFile(path) {
+        console.log(path);
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/delete?path=" + path, true);
+        xhr.send();
+        xhr.onload = function () {
+            if (xhr.status !== 200) {
+                alert("Failed to delete file: " + xhr.responseText);
+                location.reload();
+                return;
+            }
+            alert("File delete successfully!");
+            location.reload();
+        }
+    }
+</script>
+</body>
+</html>
