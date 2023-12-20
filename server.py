@@ -230,6 +230,8 @@ class HttpServer:
                     return 404, 'Not Found'
                 file_name, file_content = self.get_file(request)
                 root_path = os.path.join(root_path, file_name)
+                if not os.path.exists(root_path):
+                    return 406, 'Already Exist'
                 # print('root_path:', root_path)
                 # print('file_content:', file_content)
                 open(root_path, 'w').write(file_content)
@@ -240,6 +242,8 @@ class HttpServer:
                 new_directory = request['path'].split('?')[2]
                 directory_name = new_directory.split('=')[1]
                 root_path = os.path.join(root_path, directory_name)
+                if not os.path.exists(root_path):
+                    return 406, 'Already Exist'
                 os.mkdir(root_path)
                 return 200, ''
             if path == '/delete':
@@ -256,6 +260,8 @@ class HttpServer:
                 if not os.path.isfile(os.path.join(root_path, file_name)):
                     return 404, 'Not Found'
                 new_filename = request['path'].split('?')[2].split('=')[1]
+                if not os.path.exists(os.path.join(root_path, new_filename)):
+                    return 406, 'Already Exist'
                 os.rename(os.path.join(root_path, file_name), os.path.join(root_path, new_filename))
                 return 200, ''
         else:
@@ -354,6 +360,8 @@ class HttpServer:
             body = ''
             # if request['method'] == 'GET':
             code, body = self.get_body(status_code, request, http_request)
+            if code == 406:
+                status_code, status_text = 406, 'Already Exist'
             if code == 403:
                 status_code, status_text = 403, 'Forbidden'
             if code == 404:
