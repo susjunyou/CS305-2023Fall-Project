@@ -43,6 +43,7 @@ class HttpServer:
         self.server_socket.listen(7)
 
     def start_server(self):
+        print("CS305 HTTP Server is running...")
         while True:
             client_socket, addr = self.server_socket.accept()
             self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -83,6 +84,7 @@ class HttpServer:
             files += '<li class="file-item">' \
                      '<a href="{}" class="file-link">/..</a>' \
                      '</li>\n'.format("/" + parent_directory + "?SUSTech-HTTP=0")
+        index = 0
         for file in os.listdir(path):
             file_list.append(file)
             file_path = os.path.join(path, file)
@@ -90,13 +92,21 @@ class HttpServer:
             if os.path.isfile(file_path):
                 files += '<li class="file-item">' \
                          '<a href="{}" class="file-link" download>{}</a>' \
+                         '<div>' \
+                         '<label for="new name"></label>' \
+                         '<input type="text" id="newName{}" placeholder="newName" required style="margin-right:20px">' \
+                         '<button class="delete-btn" onclick="renameFile({},{})" style="margin-right:10px">Rename</button>' \
                          '<button class="delete-btn" onclick="deleteFile({})">Delete</button>' \
+                         '</div>' \
                          '</li>\n'.format(
-                    url_path_1, file, "'" + url_path_1.replace('\\', '/') + "'")
+                    url_path_1, file, str(index), "'" + url_path_1.replace('\\', '/') + "'", str(index),
+                                                  "'" + url_path_1.replace('\\', '/') + "'")
+                index = index + 1
             else:
                 files += '<li class="file-item">' \
                          '<a href="{}" class="file-link">{}</a>' \
                          '</li>\n'.format(url_path_1 + "?SUSTech-HTTP=0", file)
+
         html_content = html_template.render(files=files, path=url_path)
         return html_content, file_list
 
@@ -237,7 +247,7 @@ class HttpServer:
                     return 404, 'Not Found'
                 file_name, file_content = self.get_file(request)
                 root_path = os.path.join(root_path, file_name)
-                if not os.path.exists(root_path):
+                if os.path.exists(root_path):
                     return 406, 'Already Exist'
                 # print('root_path:', root_path)
                 # print('file_content:', file_content)
@@ -249,7 +259,7 @@ class HttpServer:
                 new_directory = request['path'].split('?')[2]
                 directory_name = new_directory.split('=')[1]
                 root_path = os.path.join(root_path, directory_name)
-                if not os.path.exists(root_path):
+                if os.path.exists(root_path):
                     return 406, 'Already Exist'
                 os.mkdir(root_path)
                 return 200, ''
@@ -267,7 +277,7 @@ class HttpServer:
                 if not os.path.isfile(os.path.join(root_path, file_name)):
                     return 404, 'Not Found'
                 new_filename = request['path'].split('?')[2].split('=')[1]
-                if not os.path.exists(os.path.join(root_path, new_filename)):
+                if os.path.exists(os.path.join(root_path, new_filename)):
                     return 406, 'Already Exist'
                 os.rename(os.path.join(root_path, file_name), os.path.join(root_path, new_filename))
                 return 200, ''
