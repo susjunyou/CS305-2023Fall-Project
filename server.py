@@ -80,16 +80,23 @@ class HttpServer:
         if path != 'tmp\\':
             parent_directory = os.path.abspath(os.path.join(url_path, os.pardir))[3:]
             # print("path222", parent_directory)
-            files += '<li><a href="{}">/..</a></li>\n'.format("/" + parent_directory + "?SUSTech-HTTP=0")
+            files += '<li class="file-item">' \
+                     '<a href="{}" class="file-link">/..</a>' \
+                     '</li>\n'.format("/" + parent_directory + "?SUSTech-HTTP=0")
         for file in os.listdir(path):
             file_list.append(file)
             file_path = os.path.join(path, file)
             url_path_1 = file_path.replace('tmp\\', '/')
             if os.path.isfile(file_path):
-                files += '<li><a href="{}" download>{}</a></li><button onclick="deleteFile()">Delete</button>\n'.format(
-                    url_path_1, file, url_path_1.replace('\\','/'))
+                files += '<li class="file-item">' \
+                         '<a href="{}" class="file-link" download>{}</a>' \
+                         '<button class="delete-btn" onclick="deleteFile({})">Delete</button>' \
+                         '</li>\n'.format(
+                    url_path_1, file, "'" + url_path_1.replace('\\', '/') + "'")
             else:
-                files += '<li><a href="{}">{}</a></li>\n'.format(url_path_1 + "?SUSTech-HTTP=0", file)
+                files += '<li class="file-item">' \
+                         '<a href="{}" class="file-link">{}</a>' \
+                         '</li>\n'.format(url_path_1 + "?SUSTech-HTTP=0", file)
         html_content = html_template.render(files=files, path=url_path)
         return html_content, file_list
 

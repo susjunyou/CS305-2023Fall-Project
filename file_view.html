@@ -3,16 +3,94 @@
 <head>
     <meta charset="utf-8">
     <title>CS305 Project File Manage Server</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .file-list {
+            width: 60%;
+            margin: 0 auto;
+            padding: 0;
+            list-style-type: none;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 5px;
+            background-color: #f5f5f5;
+        }
+
+        .file-item2 {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 5px;
+            background-color: white;
+        }
+
+        .file-link {
+            text-decoration: none;
+            color: #0366d6;
+            margin-right: 10px;
+        }
+
+        .delete-btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            background-color: #0366d6;
+            color: white;
+            cursor: pointer;
+        }
+
+        .delete-btn:hover {
+            background-color: #0056b3;
+        }
+
+        input[type="file"] {
+            margin-bottom: 10px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .upload-btn {
+            display: block;
+            margin: 0 auto;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: #0366d6;
+            color: white;
+            cursor: pointer;
+        }
+
+        .upload-btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
 </head>
 <body>
 <h1>Directory listing for{{path}}</h1>
-<ul>
-    <li><a href="/?SUSTech-HTTP=0">/.</a></li>
+<ul class="file-list">
+    <li class="file-item"><a href="/?SUSTech-HTTP=0" class="file-link">/.</a></li>
     {{files}}
+    <li class="file-item2">
+        <input type="file" id="fileInput">
+        <button class="upload-btn" onclick="uploadFile()">Upload</button>
+    </li>
 </ul>
-<input type="file" id="fileInput">
-<button onclick="uploadFile()">Upload</button>
-
 <script>
     function uploadFile() {
         const fileInput = document.getElementById('fileInput');
@@ -41,8 +119,13 @@
         xhr.open("POST", "/delete?path=" + path, true);
         xhr.send();
         xhr.onload = function () {
+            console.log(xhr.status);
             if (xhr.status !== 200) {
-                alert("Failed to delete file: " + xhr.responseText);
+                if (xhr.status === 408) {
+                    alert("Session expired. Please login again.");
+                    window.location.href = 'http://localhost:8080/login';
+                    return;
+                }
                 location.reload();
                 return;
             }
