@@ -361,8 +361,17 @@ class HttpServer:
         return http_request.username, http_request.password
 
     def get_file(self, request):
-        file_name = request['body'].split('; filename="')[1].split('"')[0]
-        file_content = request['body'].split('"\r\n\r\n')[1].split('\r\n')[0]
+        boundary = '--' + request['headers']['Content-Type'].split('boundary=')[-1]
+        contents = request['body']
+
+        start_marker = '\r\n\r\n'
+        end_marker = boundary
+        start_index = contents.find(start_marker) + len(start_marker)
+        end_index = contents.rfind(end_marker)
+
+        file_content = contents[start_index:end_index]
+        file_name = request['body'].split('filename="')[1].split('"\r\n')[0]
+        # print(file_content)
         return file_name, file_content
 
     def handle_client(self, client_socket):
