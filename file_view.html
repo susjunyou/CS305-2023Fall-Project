@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>CS305 Project File Manage Server</title>
-   <style>
+    <style>
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
@@ -23,7 +23,7 @@
             background-color: white;
             border-radius: 5px;
             padding: 20px;
-            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
         }
 
         .file-item, .file-item2 {
@@ -102,6 +102,18 @@
             body: formData
         })
             .then(response => {
+                if (response.status !== 200) {
+                    if (response.status === 408) {
+                        alert('Session expired. Please login again.');
+                        window.location.href = 'http://localhost:8080/login';
+                        return;
+                    }
+                    if (response.status === 403) {
+                        alert('You do not have permission to delete this file!');
+                    }
+                }
+                alert('File uploaded successfully!');
+                location.reload();
                 console.log('File uploaded:', response);
             })
             .catch(error => {
@@ -109,29 +121,6 @@
             });
     }
 
-    function openRenameModal(path) {
-        const modal = document.getElementById('renameModal');
-        modal.style.display = 'block';
-
-        const form = document.getElementById('renameForm');
-        form.onsubmit = function (event) {
-            event.preventDefault();
-            const newName = document.getElementById('newName').value;
-            renameFile(path, newName);
-            modal.style.display = 'none';
-        };
-
-        const closeBtn = document.querySelector('.close');
-        closeBtn.onclick = function () {
-            modal.style.display = 'none';
-        };
-
-        window.onclick = function (event) {
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        };
-    }
 
     function renameFile(path, index) {
         console.log(path);

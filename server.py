@@ -67,7 +67,7 @@ class HttpServer:
         body = ""
         if "Content-Length" in headers:
             length = int(headers["Content-Length"])
-            body = sock.recv(length).decode()
+            body = sock.recv(length)
         return {"method": method, "path": path, "version": version, "headers": headers, "body": body}
 
     def generate_html(self, path):
@@ -115,7 +115,10 @@ class HttpServer:
         for key, value in headers.items():
             response += f"{key}: {value}\r\n"
         response += "\r\n"
-        response += body
+        response = response.encode('utf-8')
+        # print("errrrrrrrrrrr",response)
+        # print(body)
+        # response += body
         return response
 
     def get_status(self, request, http_request):
@@ -177,12 +180,12 @@ class HttpServer:
                 ranges = request['headers']['Range'].split(',')
                 if len(ranges) != 1:
                     headers['Content-Type'] = 'multipart/byteranges; boundary=3d6b6a416f9b5'
-                    headers['Content-Length'] = len(body.encode('utf-8'))
+                    headers['Content-Length'] = len(body)
                     headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
                                                              time.gmtime(os.path.getmtime(http_request.file_path)))
                 else:
                     headers['Content-Type'] = http_request.file_type
-                    headers['Content-Length'] = len(body.encode('utf-8'))
+                    headers['Content-Length'] = len(body)
                     headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
                                                              time.gmtime(os.path.getmtime(http_request.file_path)))
                     headers['Content-Range'] = 'bytes' + str(ranges[0]) + "/" + str(http_request.file_size)
@@ -190,12 +193,12 @@ class HttpServer:
             else:
                 if http_request.file_path != '':
                     headers['Content-Type'] = http_request.file_type
-                    headers['Content-Length'] = len(body.encode('utf-8'))
+                    headers['Content-Length'] = len(body)
                     headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
                                                              time.gmtime(os.path.getmtime(http_request.file_path)))
                 else:
                     headers['Content-Type'] = http_request.file_type
-                    headers['Content-Length'] = len(body.encode('utf-8'))
+                    headers['Content-Length'] = len(body)
         if 'Cookie' not in request['headers'] or http_request.is_login:
             rand = uuid.uuid4()
             headers['Set-Cookie'] = 'session=' + str(rand)
@@ -214,10 +217,10 @@ class HttpServer:
     def get_body(self, status_code, request, http_request):
         if status_code == 410:
             with open('login.html', 'r') as f:
-                return 200, f.read()
+                return 200, f.read().encode('utf-8')
         # path = '/', 不需要 body
         if request['path'] == '/':
-            return 200, ''
+            return 200, ''.encode('utf-8')
         # '?' 前判断是 GET方法的 view/download, 还是 POST 方法的 upload/delete
         path = request['path'].split('?')[0]
         # print('path:', path)
@@ -226,9 +229,9 @@ class HttpServer:
         if path == '/upload' or path == '/delete' or path == '/rename' or path == '/addDirectory':
             if status_code == 408:
                 with open('login.html', 'r') as f:
-                    return 408, f.read()
+                    return 408, f.read().encode('utf-8')
             if request['method'] != 'POST':
-                return 405, "Method Not Allowed"
+                return 405, "Method Not Allowed".encode('utf-8')
             parameter = request['path'].split('?')[1]
             post_paths = parameter.split('=')[1].split("/")
             post_user = ''
@@ -237,56 +240,57 @@ class HttpServer:
                     post_user = parts
                     break
             if post_user != http_request.username:
-                return 403, 'Forbidden'  # 没body的吧
+                return 403, 'Forbidden'.encode('utf-8')  # 没body的吧
             root_path = "tmp"
             root_path = os.path.join(root_path, post_user)
             # 还要加入 filename, body 还不会解析
             if path == '/upload':
                 # upload 的文件夹是否存在
                 if not os.path.exists(root_path):
-                    return 404, 'Not Found'
+                    return 404, 'Not Found'.encode('utf-8')
                 file_name, file_content = self.get_file(request)
                 root_path = os.path.join(root_path, file_name)
                 if os.path.exists(root_path):
-                    return 406, 'Already Exist'
+                    return 406, 'Already Exist'.encode('utf-8')
                 # print('root_path:', root_path)
                 # print('file_content:', file_content)
-                open(root_path, 'w').write(file_content)
-                return 200, ''
+                open(root_path, 'wb').write(file_content)
+                return 200, ''.encode('utf-8')
             if path == '/addDirectory':
                 if not os.path.exists(root_path):
-                    return 404, 'Not Found'
+                    return 404, 'Not Found'.encode('utf-8')
                 new_directory = request['path'].split('?')[2]
                 directory_name = new_directory.split('=')[1]
                 root_path = os.path.join(root_path, directory_name)
                 if os.path.exists(root_path):
-                    return 406, 'Already Exist'
+                    return 406, 'Already Exist'.encode('utf-8')
                 os.mkdir(root_path)
-                return 200, ''
+                return 200, ''.encode('utf-8')
             if path == '/delete':
                 file_name = post_paths[-1]
                 root_path = os.path.join(root_path, file_name)
                 # delete 的文件是否存在
                 if not os.path.isfile(root_path):
-                    return 404, 'Not Found'
+                    return 404, 'Not Found'.encode('utf-8')
                 os.remove(root_path)
-                return 200, ''
+                return 200, ''.encode('utf-8')
             if path == '/rename':
                 file_name = post_paths[-1]
                 # delete 的文件是否存在
                 if not os.path.isfile(os.path.join(root_path, file_name)):
-                    return 404, 'Not Found'
+                    return 404, 'Not Found'.encode('utf-8')
                 new_filename = request['path'].split('?')[2].split('=')[1]
                 if os.path.exists(os.path.join(root_path, new_filename)):
-                    return 406, 'Already Exist'
+                    return 406, 'Already Exist'.encode('utf-8')
                 os.rename(os.path.join(root_path, file_name), os.path.join(root_path, new_filename))
-                return 200, ''
+                return 200, ''.encode('utf-8')
         else:
             if request['method'] != 'GET':
-                return 405, "Method Not Allowed"
+                return 405, "Method Not Allowed".encode('utf-8')
             root_path = "tmp"
             for path in paths:
                 root_path = os.path.join(root_path, path)
+            print("root_path", root_path)
             if os.path.isfile(root_path):
                 http_request.file_type, http_request.encoding = self.get_file_type(root_path)
                 http_request.file_path = root_path
@@ -301,17 +305,17 @@ class HttpServer:
                         code1, body1 = self.breakpoint_transmission(request, root_path, http_request)
                         return code1, body1
                     # print(open(root_path, 'rb').read().decode('utf-8'))
-                    return 200, open(root_path, 'rb').read().decode('utf-8')
+                    return 200, open(root_path, 'rb').read()
             if not os.path.exists(root_path):
-                return 404, 'Not Found'
+                return 404, 'Not Found'.encode('utf-8')
             html, file_list = self.generate_html(root_path)
             if request['path'].split('?')[-1] == 'SUSTech-HTTP=0':
                 http_request.file_type = 'text/html'
-                return 200, html
+                return 200, html.encode('utf-8')
             if request['path'].split('?')[-1] == 'SUSTech-HTTP=1':
                 http_request.file_type = 'text/html'
-                return 200, '[ "' + '", "'.join(file_list) + '"]'
-            return 400, "Bad Request"
+                return 200, ('[ "' + '", "'.join(file_list) + '"]').encode('utf-8')
+            return 400, "Bad Request".encode('utf-8')
 
     def breakpoint_transmission(self, request, file_path, http_request):
         body = b''
@@ -350,7 +354,7 @@ class HttpServer:
                 body += resp['body'] + b"\r\n"
             body += f"--{boundary}--\r\n".encode()
 
-        return 206, body.decode('utf-8')
+        return 206, body
 
     def get_authorization(self, request, http_request):
         auth_header = request['headers']['Authorization']
@@ -364,15 +368,15 @@ class HttpServer:
         boundary = '--' + request['headers']['Content-Type'].split('boundary=')[-1]
         contents = request['body']
 
-        start_marker = '\r\n\r\n'
-        end_marker = boundary
+        start_marker = '\r\n\r\n'.encode('utf-8')
+        end_marker = boundary.encode('utf-8')
         start_index = contents.find(start_marker) + len(start_marker)
         end_index = contents.rfind(end_marker)
 
         file_content = contents[start_index:end_index]
-        file_name = request['body'].split('filename="')[1].split('"\r\n')[0]
+        file_name = request['body'].split('filename="'.encode())[1].split('"\r\n'.encode())[0]
         # print(file_content)
-        return file_name, file_content
+        return file_name.decode('utf-8'), file_content
 
     def handle_client(self, client_socket):
         while True:
@@ -381,7 +385,9 @@ class HttpServer:
             if request['method'] is None:
                 break
             http_request = HttpRequest()
-            print("request", request)
+            print("request method:", request['method'])
+            print("request path:", request['path'])
+            print("request header:", request['headers'])
             status_code, status_text = self.get_status(request, http_request)
             body = ''
             # if request['method'] == 'GET':
@@ -405,7 +411,8 @@ class HttpServer:
                 # send headers
                 client_socket.sendall(
                     self.create_http_response(status_code=status_code, status_text=status_text, headers=headers,
-                                              body="").encode())
+                                              body=""))
+                # client_socket.sendall(body)
                 # send body by chunk( this body actually is a file path )
                 with open(body, 'rb') as f:
                     while True:
@@ -422,8 +429,11 @@ class HttpServer:
             else:
                 response = self.create_http_response(status_code=status_code, status_text=status_text,
                                                      headers=headers, body=body)
-                print("response", response)
-                client_socket.sendall(response.encode())
+                print("response status code", status_code)
+                print("response status text", status_text)
+                print("response headers", headers)
+                client_socket.sendall(response)
+                client_socket.sendall(body)
             if request['headers'].get('Connection').lower() == 'close':
                 break
         # except Exception as e:
