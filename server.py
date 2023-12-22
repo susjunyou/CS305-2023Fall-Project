@@ -15,6 +15,7 @@ local_cookie = {}
 cookie_time = {}
 max_file_size = 1024 * 1024 * 10
 chunk_size = 1024 * 1024
+cookie_time_out = 3600
 
 
 def my_parser():
@@ -143,22 +144,17 @@ class HttpServer:
                     for key, value in local_cookie.items():
                         if value == header_cookie:
                             http_request.username = key
+            if header_cookie == '':
+                return 401, 'Unauthorized'
             print("http_request.username", http_request.username)
             if http_request.username == '':
                 return 408, 'Need login'
-            if header_cookie in local_cookie:
-                if local_cookie[http_request.username] == headers['Cookie']:
-                    if time.time() - cookie_time[http_request.username] > 60:
-                        return 401, 'Unauthorized'
-                    else:
-                        cookie_time[http_request.username] = time.time()
-                        return 200, 'OK'
-                else:
-                    return 401, 'Unauthorized'
             else:
-                # 第一次登录 但是这个cookie不是我们的server发送给浏览器的
-                # local_cookie[http_request.username] = headers['Cookie']
-                return 401, ''
+                if time.time() - cookie_time[http_request.username] > cookie_time_out:
+                    return 401, 'Unauthorized'
+                else:
+                    cookie_time[http_request.username] = time.time()
+                    return 200, 'OK'
         else:
             return 401, 'Unauthorized'
         return 200, 'OK'
@@ -214,10 +210,18 @@ class HttpServer:
         headers['Date'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())
         return headers
 
+    def decode_url(self, s):
+        parts = s.split('%')
+        result = [parts[0]]
+        for part in parts[1:]:
+            i = int(part[:2], 16)
+            result.append(chr(i) + part[2:])
+        return ''.join(result)
+
     def get_body(self, status_code, request, http_request):
         if status_code == 410:
             with open('login.html', 'r') as f:
-                return 200, f.read().encode('utf-8')
+                return 410, f.read().encode('utf-8')
         # path = '/', 不需要 body
         if request['path'] == '/':
             return 200, ''.encode('utf-8')
@@ -270,8 +274,10 @@ class HttpServer:
                 file_name = post_paths[-1]
                 root_path = os.path.join(root_path, file_name)
                 # delete 的文件是否存在
+                print("remove1", root_path)
                 if not os.path.isfile(root_path):
                     return 404, 'Not Found'.encode('utf-8')
+
                 os.remove(root_path)
                 return 200, ''.encode('utf-8')
             if path == '/rename':
@@ -385,6 +391,13 @@ class HttpServer:
             if request['method'] is None:
                 break
             http_request = HttpRequest()
+            if request['path'].find("%") is not None:
+                print("request path before:", request['path'])
+                request['path'] = self.decode_url(request['path'])
+                request['path'] = request['path'].encode('iso-8859-1').decode('utf-8')
+
+                print("request path after:", request['path'])
+
             print("request method:", request['method'])
             print("request path:", request['path'])
             print("request header:", request['headers'])
@@ -394,18 +407,20 @@ class HttpServer:
             code, body = self.get_body(status_code, request, http_request)
             if code == 406:
                 status_code, status_text = 406, 'Already Exist'
-            if code == 403:
+            elif code == 403:
                 status_code, status_text = 403, 'Forbidden'
-            if code == 404:
+            elif code == 404:
                 status_code, status_text = 404, 'Not Found'
-            if code == 405:
+            elif code == 405:
                 status_code, status_text = 405, 'Method Not Allowed'
-            if code == 400:
+            elif code == 400:
                 status_code, status_text = 400, 'Bad Request'
-            if code == 206:
+            elif code == 206:
                 status_code, status_text = 206, 'Partial Content'
-            if code == 200:
+            elif code == 200 and status_code == 408:
                 status_code, status_text = 200, 'OK'
+            elif code == 410 and status_code == 408:
+                status_code, status_text = 410, 'Gone'
             headers = self.get_headers(request, status_code, body, http_request)
             if http_request.is_chunked:
                 # send headers
