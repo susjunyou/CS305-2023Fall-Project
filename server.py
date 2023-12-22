@@ -246,7 +246,8 @@ class HttpServer:
             if post_user != http_request.username:
                 return 403, 'Forbidden'.encode('utf-8')  # 没body的吧
             root_path = "tmp"
-            root_path = os.path.join(root_path, post_user)
+            for parts in post_paths:
+                root_path = os.path.join(root_path, parts)
             # 还要加入 filename, body 还不会解析
             if path == '/upload':
                 # upload 的文件夹是否存在
@@ -272,7 +273,7 @@ class HttpServer:
                 return 200, ''.encode('utf-8')
             if path == '/delete':
                 file_name = post_paths[-1]
-                root_path = os.path.join(root_path, file_name)
+                # root_path = os.path.join(root_path, file_name)
                 # delete 的文件是否存在
                 print("remove1", root_path)
                 if not os.path.isfile(root_path):
@@ -281,14 +282,14 @@ class HttpServer:
                 os.remove(root_path)
                 return 200, ''.encode('utf-8')
             if path == '/rename':
-                file_name = post_paths[-1]
                 # delete 的文件是否存在
-                if not os.path.isfile(os.path.join(root_path, file_name)):
+                if not os.path.isfile(root_path):
                     return 404, 'Not Found'.encode('utf-8')
                 new_filename = request['path'].split('?')[2].split('=')[1]
-                if os.path.exists(os.path.join(root_path, new_filename)):
+                new_rootpath = os.path.join(os.path.dirname(root_path), new_filename)
+                if os.path.exists(new_rootpath):
                     return 406, 'Already Exist'.encode('utf-8')
-                os.rename(os.path.join(root_path, file_name), os.path.join(root_path, new_filename))
+                os.rename(root_path, new_rootpath)
                 return 200, ''.encode('utf-8')
         else:
             if request['method'] != 'GET':
