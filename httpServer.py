@@ -7,7 +7,7 @@ import uuid
 import time
 import mimetypes
 
-from cryptography.fernet import Fernet
+
 from jinja2 import Template
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -15,7 +15,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
-
+from cryptography.fernet import Fernet
 from http_request import HttpRequest
 
 user_auth = {}
@@ -97,13 +97,7 @@ class HttpServer:
                                               cur_len))
             if body != b'':
                 if http_request.aes_key is not None:
-                    body = http_request.aes_key.decrypt(
-                        body,
-                        padding.OAEP(
-                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                            algorithm=hashes.SHA256(),
-                            label=None)
-                    )
+                    body = http_request.aes_key.decrypt(body.decode('utf-8'))
             return {"method": method, "path": path, "version": version, "headers": headers, "body": body}
         return {"method": None, "path": None, "version": None, "headers": None, "body": None}
 
@@ -319,7 +313,7 @@ class HttpServer:
                     label=None
                 )
             )
-            aes_keys[http_request.username] = decrypted_key
+            aes_keys[http_request.username] =  Fernet(decrypted_key)
             print("ASE", aes_keys[http_request.username])
             return 200, ''.encode('utf-8')
         if status_code == 410:
@@ -475,17 +469,6 @@ class HttpServer:
         return http_request.username, http_request.password
 
     def get_file(self, request, http_request):
-        # if http_request.is_encrypt:
-        #     aes_key = aes_keys[http_request.username]
-        #     encrypted_file = request['body']
-        #     contents = aes_key.decrypt(
-        #         encrypted_file,
-        #         padding.OAEP(
-        #             mgf=padding.MGF1(algorithm=hashes.SHA256()),
-        #             algorithm=hashes.SHA256(),
-        #             label=None)
-        #     )
-        # else:
         contents = request['body']
         boundary = '--' + request['headers']['Content-Type'].split('boundary=')[-1]
 
@@ -541,6 +524,10 @@ class HttpServer:
                 status_code, status_text = 410, 'Gone'
             elif status_code == 252:
                 status_code, status_text = 200, 'OK'
+            if http_request.aes_key is not None:
+                print("berfore encrypt", body)
+                body = http_request.aes_key.encrypt(body)
+                print("after encrypt", body)
             headers = self.get_headers(request, status_code, body, http_request)
             if http_request.is_chunked:
                 # send headers
@@ -578,14 +565,12 @@ class HttpServer:
                     client_socket.sendall(data)
                     http_request.is_chunked = False
             else:
+
                 response = self.create_http_response(status_code=status_code, status_text=status_text,
-                                                     headers=headers, body="")
+                                                     headers=headers, body=body)
                 print("response status code", status_code)
                 print("response status text", status_text)
                 print("response headers", headers)
-                if http_request.aes_key is not None:
-                    cipher_suite = Fernet(http_request.aes_key)
-                    body = cipher_suite.encrypt(body)
                 client_socket.sendall(response)
                 client_socket.sendall(body)
             print("ase_key", aes_keys)
