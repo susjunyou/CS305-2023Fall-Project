@@ -11,3 +11,7 @@ class HttpRequest:
         self.password = ''
         self.is_chunked = False
         self.is_login = False
+        self.is_encrypt = False
+        self.public_key = ''
+        self.private_key = ''
+        self.aes_key = None
