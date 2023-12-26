@@ -97,7 +97,7 @@ class HttpServer:
                                               cur_len))
             if body != b'':
                 if http_request.aes_key is not None:
-                    body = http_request.aes_key.decrypt(body.decode('utf-8'))
+                    body = http_request.aes_key.decrypt(body)
             return {"method": method, "path": path, "version": version, "headers": headers, "body": body}
         return {"method": None, "path": None, "version": None, "headers": None, "body": None}
 

@@ -374,7 +374,7 @@ class HttpServer:
     def get_file(self, request):
         boundary = '--' + request['headers']['Content-Type'].split('boundary=')[-1]
         contents = request['body']
-
+        print(contents)
         start_marker = '\r\n\r\n'.encode('utf-8')
         end_marker = boundary.encode('utf-8')
         start_index = contents.find(start_marker) + len(start_marker)
