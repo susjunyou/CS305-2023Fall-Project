@@ -108,7 +108,7 @@ class HttpServer:
                          '<a href="{}" class="file-link">{}</a>' \
                          '</li>\n'.format(url_path_1 + "?SUSTech-HTTP=0", file)
 
-        html_content = html_template.render(files=files, path=url_path.replace('\\','/'))
+        html_content = html_template.render(files=files, path=url_path.replace('\\', '/'))
         return html_content, file_list
 
     def create_http_response(self, status_code, status_text, headers, body):
@@ -144,7 +144,7 @@ class HttpServer:
                     for key, value in local_cookie.items():
                         if value == header_cookie:
                             http_request.username = key
-            if header_cookie == '':
+            if http_request.username == '':
                 return 401, 'Unauthorized'
             print("http_request.username", http_request.username)
             if http_request.username == '':
@@ -219,16 +219,19 @@ class HttpServer:
         return ''.join(result)
 
     def get_body(self, status_code, request, http_request):
-        if status_code == 410:
+        if request['method'] == 'HEAD':
+            return 200, ''.encode('utf-8')
+        if status_code == 410 or status_code == 401:
             with open('login.html', 'r') as f:
                 return 410, f.read().encode('utf-8')
         # path = '/', 不需要 body
-        if request['path'] == '/':
-            return 200, ''.encode('utf-8')
+
         # '?' 前判断是 GET方法的 view/download, 还是 POST 方法的 upload/delete
         path = request['path'].split('?')[0]
         # print('path:', path)
         paths = path.split("/")
+        if path == '/check':
+            return 200, ''.encode('utf-8')
         # 看起来 /upload /delete 和 POST 绑定
         if path == '/upload' or path == '/delete' or path == '/rename' or path == '/addDirectory':
             if status_code == 408:
@@ -294,6 +297,8 @@ class HttpServer:
         else:
             if request['method'] != 'GET':
                 return 405, "Method Not Allowed".encode('utf-8')
+            if request['path'] == '/':
+                return 200, ''.encode('utf-8')
             root_path = "tmp"
             for path in paths:
                 root_path = os.path.join(root_path, path)
@@ -395,7 +400,6 @@ class HttpServer:
             if request['path'].find("%") is not None:
                 request['path'] = self.decode_url(request['path'])
                 request['path'] = request['path'].encode('iso-8859-1').decode('utf-8')
-
             print("request method:", request['method'])
             print("request path:", request['path'])
             print("request header:", request['headers'])
@@ -420,6 +424,7 @@ class HttpServer:
             elif code == 410 and status_code == 408:
                 status_code, status_text = 410, 'Gone'
             headers = self.get_headers(request, status_code, body, http_request)
+
             if http_request.is_chunked:
                 # send headers
                 client_socket.sendall(
