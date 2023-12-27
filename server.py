@@ -13,8 +13,8 @@ from http_request import HttpRequest
 user_auth = {}
 local_cookie = {}
 cookie_time = {}
-max_file_size = 1024 * 1024 * 100
-chunk_size = 1024 * 1024 * 10
+max_file_size = 1024 * 1024 * 10
+chunk_size = 1024 * 1024 * 1
 cookie_time_out = 3600
 
 
@@ -69,7 +69,7 @@ class HttpServer:
         if "Content-Length" in headers:
             length = int(headers["Content-Length"])
             while len(body) < length:
-                body += sock.recv(min(length - len(body), 1024))
+                body += sock.recv(min(length - len(body), chunk_size * 10))
 
         return {"method": method, "path": path, "version": version, "headers": headers, "body": body}
 
@@ -141,7 +141,7 @@ class HttpServer:
             cookies = headers['Cookie'].split('; ')
             header_cookie = ''
             for cookie in cookies:
-                if cookie.startswith('session='):
+                if cookie.startswith('session-id='):
                     header_cookie = cookie
                     for key, value in local_cookie.items():
                         if value == header_cookie:
@@ -199,7 +199,7 @@ class HttpServer:
                     headers['Content-Length'] = len(body)
         if 'Cookie' not in request['headers'] or http_request.is_login:
             rand = uuid.uuid4()
-            headers['Set-Cookie'] = 'session=' + str(rand)
+            headers['Set-Cookie'] = 'session-id=' + str(rand)
             local_cookie[http_request.username] = headers['Set-Cookie']
             print("local_cookie", local_cookie)
             cookie_time[http_request.username] = time.time()
@@ -381,7 +381,7 @@ class HttpServer:
     def get_file(self, request):
         boundary = '--' + request['headers']['Content-Type'].split('boundary=')[-1]
         contents = request['body']
-        print(contents)
+        # print(contents)
         start_marker = '\r\n\r\n'.encode('utf-8')
         end_marker = boundary.encode('utf-8')
         start_index = contents.find(start_marker) + len(start_marker)
