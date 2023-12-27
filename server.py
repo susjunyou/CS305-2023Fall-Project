@@ -13,8 +13,8 @@ from http_request import HttpRequest
 user_auth = {}
 local_cookie = {}
 cookie_time = {}
-max_file_size = 1024 * 1024 * 10
-chunk_size = 1024 * 1024
+max_file_size = 1024 * 1024 * 100
+chunk_size = 1024 * 1024 * 10
 cookie_time_out = 3600
 
 
@@ -65,10 +65,12 @@ class HttpServer:
             if line:
                 key, value = line.split(": ", 1)
                 headers[key] = value
-        body = ""
+        body = b""
         if "Content-Length" in headers:
             length = int(headers["Content-Length"])
-            body = sock.recv(length)
+            while len(body) < length:
+                body += sock.recv(min(length - len(body), 1024))
+
         return {"method": method, "path": path, "version": version, "headers": headers, "body": body}
 
     def generate_html(self, path):
