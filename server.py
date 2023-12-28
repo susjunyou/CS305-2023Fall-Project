@@ -261,7 +261,16 @@ class HttpServer:
                 file_name, file_content = self.get_file(request)
                 root_path = os.path.join(root_path, file_name)
                 if os.path.exists(root_path):
-                    return 406, 'Already Exist'.encode('utf-8')
+                    # 新文件名已存在
+                    base_name, extension = os.path.splitext(file_name)
+                    counter = 1
+                    while True:
+                        new_filename_with_counter = f"{base_name}({counter}){extension}"
+                        root_path = os.path.join(os.path.dirname(root_path), new_filename_with_counter)
+                        if not os.path.exists(root_path):
+                            # 如果不存在相同的文件名，使用新的文件名
+                            break
+                        counter += 1
                 # print('root_path:', root_path)
                 # print('file_content:', file_content)
                 open(root_path, 'wb').write(file_content)
@@ -273,7 +282,16 @@ class HttpServer:
                 directory_name = new_directory.split('=')[1]
                 root_path = os.path.join(root_path, directory_name)
                 if os.path.exists(root_path):
-                    return 406, 'Already Exist'.encode('utf-8')
+                    # 新文件名已存在
+                    base_name, extension = os.path.splitext(directory_name)
+                    counter = 1
+                    while True:
+                        new_filename_with_counter = f"{base_name}({counter}){extension}"
+                        root_path = os.path.join(os.path.dirname(root_path), new_filename_with_counter)
+                        if not os.path.exists(root_path):
+                            # 如果不存在相同的文件名，使用新的文件名
+                            break
+                        counter += 1
                 os.mkdir(root_path)
                 return 200, ''.encode('utf-8')
             if path == '/delete':
@@ -293,7 +311,16 @@ class HttpServer:
                 new_filename = request['path'].split('?')[2].split('=')[1]
                 new_rootpath = os.path.join(os.path.dirname(root_path), new_filename)
                 if os.path.exists(new_rootpath):
-                    return 406, 'Already Exist'.encode('utf-8')
+                    # 新文件名已存在
+                    base_name, extension = os.path.splitext(new_filename)
+                    counter = 1
+                    while True:
+                        new_filename_with_counter = f"{base_name}({counter}){extension}"
+                        new_rootpath = os.path.join(os.path.dirname(root_path), new_filename_with_counter)
+                        if not os.path.exists(new_rootpath):
+                            # 如果不存在相同的文件名，使用新的文件名
+                            break
+                        counter += 1
                 os.rename(root_path, new_rootpath)
                 return 200, ''.encode('utf-8')
         else:
