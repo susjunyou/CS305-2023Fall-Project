@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>User Login</title>
     <style>
-        /* Simple styling for demonstration purposes */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -69,7 +68,7 @@
                 window.location.href = 'http://localhost:8080/' + username + '?SUSTech-HTTP=0'; // Redirect to dashboard upon successful login
 
             } else {
-                alert('Login failed. Please check your credentials.');
+                alert('Login failed. Please check your password.');
             }
         } catch (error) {
             alert('An error occurred. Please try again later.');

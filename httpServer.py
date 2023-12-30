@@ -107,9 +107,9 @@ class HttpServer:
             content = f.read()
         html_template = Template(content)
         files = ''
-        url_path = path.replace('tmp\\', '/')
+        url_path = path.replace('data\\', '/')
         # print("path111", path)
-        if path != 'tmp\\':
+        if path != 'data\\':
             parent_directory = os.path.abspath(os.path.join(url_path, os.pardir))[3:]
             # print("path222", parent_directory)
             files += '<li class="file-item">' \
@@ -119,7 +119,7 @@ class HttpServer:
         for file in os.listdir(path):
             file_list.append(file)
             file_path = os.path.join(path, file)
-            url_path_1 = file_path.replace('tmp\\', '/')
+            url_path_1 = file_path.replace('data\\', '/')
             if os.path.isfile(file_path):
                 files += '<li class="file-item">' \
                          '<a href="{}" class="file-link" download>{}</a>' \
@@ -342,7 +342,7 @@ class HttpServer:
                     break
             if post_user != http_request.username:
                 return 403, 'Forbidden'.encode('utf-8')  # 没body的吧
-            root_path = "tmp"
+            root_path = "date"
             for parts in post_paths:
                 root_path = os.path.join(root_path, parts)
             # 还要加入 filename, body 还不会解析
@@ -420,7 +420,7 @@ class HttpServer:
         else:
             if request['method'] != 'GET':
                 return 405, "Method Not Allowed".encode('utf-8')
-            root_path = "tmp"
+            root_path = "date"
             for path in paths:
                 root_path = os.path.join(root_path, path)
             print("root_path", root_path)
