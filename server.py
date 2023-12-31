@@ -503,7 +503,6 @@ class HttpServer:
             print("response status text", status_text)
             print("response headers", headers)
             if http_request.is_chunked:
-
                 # send headers
                 client_socket.sendall(
                     self.create_http_response(status_code=status_code, status_text=status_text, headers=headers,
