@@ -75,17 +75,91 @@
         .upload-btn:hover {
             background-color: #0056b3;
         }
+
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            -webkit-transition: .4s;
+            transition: .4s;
+            border-radius: 20px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            -webkit-transition: .4s;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #0056b3;
+        }
+
+        input:focus + .slider {
+            box-shadow: 0 0 1px #0056b3;
+        }
+
+        input:checked + .slider:before {
+            -webkit-transform: translateX(16px);
+            -ms-transform: translateX(16px);
+            transform: translateX(16px);
+        }
+
+
+        .slider.round {
+            border-radius: 20px;
+        }
+
+        .slider.round:before {
+            border-radius: 50%;
+        }
+
+        .chunked-label {
+            color: #0056b3;
+            font-size: 18px;
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body>
 <h1>Directory listing for{{path}}</h1>
-<ul class="file-list">
+<!--<label class="chunked-label" style="margin-left: 65%"> Chunked Transfer: </label>-->
+<!--<label class="switch">-->
+<!--    <input type="checkbox" id="chunkedTransferSwitch">-->
+<!--    <span class="slider"></span>-->
+<!--</label>-->
+<ul class="file-list" style="margin-top: 10px">
     <li class="file-item"><a href="/?SUSTech-HTTP=0" class="file-link">/.</a></li>
     {{files}}
     <li class="file-item2">
         <input type="file" id="fileInput">
         <button class="upload-btn" onclick="uploadFile()">Upload</button>
-        <button class="upload-btn" onclick="addDir()">Add Directory </button>
+        <button class="upload-btn" onclick="addDir()">Add Directory</button>
     </li>
 
 </ul>
@@ -220,34 +294,35 @@
                 console.error('Error deleting direction:', error);
             });
     }
-    function addDir() {
-    const dirName = prompt('Enter the new directory name:');
 
-    if (dirName) {
-        fetch('/addDirectory?path={{path}}?new_name=' + dirName, {
-            method: 'POST'
-        })
-        .then(response => {
-            if (response.status !== 200) {
-                if (response.status === 408) {
-                    alert('Session expired. Please login again.');
-                    window.location.href = 'http://localhost:8080/login';
-                    return;
-                }
-                if (response.status === 403) {
-                    alert('You do not have permission to add this directory!');
-                }
-                location.reload();
-                return;
-            }
-            alert('Directory added successfully!');
-            location.reload();
-        })
-        .catch(error => {
-            console.error('Error adding directory:', error);
-        });
+    function addDir() {
+        const dirName = prompt('Enter the new directory name:');
+
+        if (dirName) {
+            fetch('/addDirectory?path={{path}}?new_name=' + dirName, {
+                method: 'POST'
+            })
+                .then(response => {
+                    if (response.status !== 200) {
+                        if (response.status === 408) {
+                            alert('Session expired. Please login again.');
+                            window.location.href = 'http://localhost:8080/login';
+                            return;
+                        }
+                        if (response.status === 403) {
+                            alert('You do not have permission to add this directory!');
+                        }
+                        location.reload();
+                        return;
+                    }
+                    alert('Directory added successfully!');
+                    location.reload();
+                })
+                .catch(error => {
+                    console.error('Error adding directory:', error);
+                });
+        }
     }
-}
 </script>
 </body>
 </html>

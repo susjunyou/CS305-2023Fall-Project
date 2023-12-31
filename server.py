@@ -13,9 +13,9 @@ from http_request import HttpRequest
 user_auth = {}
 local_cookie = {}
 cookie_time = {}
-max_file_size = 1024 * 1024 * 10
-chunk_size = 1024 * 1024 * 1
-cookie_time_out = 3600
+max_file_size = 1024 * 1024 * 100
+chunk_size = 1024 * 1024 * 10
+cookie_time_out = 60 * 60 * 1
 
 
 def my_parser():
@@ -40,7 +40,6 @@ class HttpServer:
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
-        # 设置最大连接数
         self.server_socket.listen(7)
 
     def start_server(self):
@@ -89,7 +88,10 @@ class HttpServer:
                      '</li>\n'.format("/" + parent_directory + "?SUSTech-HTTP=0")
         index = 0
         for file in os.listdir(path):
-            file_list.append(file)
+            if os.path.isfile(os.path.join(path, file)):
+                file_list.append(file)
+            else:
+                file_list.append(file + '/')
             file_path = os.path.join(path, file)
             url_path_1 = file_path.replace('data\\', '/')
             if os.path.isfile(file_path):
@@ -175,58 +177,65 @@ class HttpServer:
 
     def get_headers(self, request, status_code, body, http_request):
         headers = {"Server": "CS305 Project"}
-        if http_request.is_chunked:
-            headers['Transfer-Encoding'] = 'chunked'
-            headers['Content-Type'] = http_request.file_type
-            headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                     time.gmtime(os.path.getmtime(http_request.file_path)))
-        elif http_request.is_large_file:
-            headers['Content-Length'] = os.path.getsize(http_request.file_path)
-            headers['Content-Type'] = http_request.file_type
-            headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                     time.gmtime(os.path.getmtime(http_request.file_path)))
-        else:
-            # Content-Type 可能不止 text
-            if 'Range' in request['headers']:
-                ranges = request['headers']['Range'].split(',')
-                if len(ranges) != 1:
-                    headers['Content-Type'] = 'multipart/byteranges; boundary=3d6b6a416f9b5'
-                    headers['Content-Length'] = len(body)
-                    headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                             time.gmtime(os.path.getmtime(http_request.file_path)))
-                else:
-                    headers['Content-Type'] = http_request.file_type
-                    headers['Content-Length'] = len(body)
-                    headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                             time.gmtime(os.path.getmtime(http_request.file_path)))
-                    indexs = ranges[0].replace('bytes=', '').split('-')
-                    start = int(indexs[0])
-                    end = int(indexs[1]) if indexs[1] != '' else os.path.getsize(http_request.file_path) - 1
-
-                    headers['Content-Range'] = 'bytes ' + str(start) + "-" + str(end) + "/" + str(http_request.file_size)
-                    http_request.file_size = 0
+        if status_code == 200:
+            if http_request.is_chunked:
+                headers['Transfer-Encoding'] = 'chunked'
+                headers['Content-Type'] = http_request.file_type
+                headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                         time.gmtime(os.path.getmtime(http_request.file_path)))
+            elif http_request.is_large_file:
+                headers['Content-Length'] = os.path.getsize(http_request.file_path)
+                headers['Content-Type'] = http_request.file_type
+                headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                         time.gmtime(os.path.getmtime(http_request.file_path)))
             else:
-                if http_request.file_path != '':
-                    headers['Content-Type'] = http_request.file_type
-                    headers['Content-Length'] = len(body)
-                    headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                                                             time.gmtime(os.path.getmtime(http_request.file_path)))
+                # Content-Type 可能不止 text
+                if 'Range' in request['headers']:
+                    ranges = request['headers']['Range'].split(',')
+                    if len(ranges) != 1:
+                        headers['Content-Type'] = 'multipart/byteranges; boundary=3d6b6a416f9b5'
+                        headers['Content-Length'] = len(body)
+                        headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                                 time.gmtime(os.path.getmtime(http_request.file_path)))
+                    else:
+                        headers['Content-Type'] = http_request.file_type
+                        headers['Content-Length'] = len(body)
+                        headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                                 time.gmtime(os.path.getmtime(http_request.file_path)))
+                        indexs = ranges[0].replace('bytes=', '').split('-')
+                        start = int(indexs[0])
+                        end = int(indexs[1]) if indexs[1] != '' else os.path.getsize(http_request.file_path) - 1
+
+                        headers['Content-Range'] = 'bytes ' + str(start) + "-" + str(end) + "/" + str(
+                            http_request.file_size)
+                        http_request.file_size = 0
                 else:
-                    headers['Content-Type'] = http_request.file_type
-                    headers['Content-Length'] = len(body)
-        if 'Cookie' not in request['headers'] or http_request.is_login:
-            rand = uuid.uuid4()
-            headers['Set-Cookie'] = 'session-id=' + str(rand)
-            local_cookie[http_request.username] = headers['Set-Cookie']
-            print("local_cookie", local_cookie)
-            cookie_time[http_request.username] = time.time()
-            print("cookie_time", cookie_time)
+                    if http_request.file_path != '':
+                        headers['Content-Type'] = http_request.file_type
+                        headers['Content-Length'] = len(body)
+                        headers['Last-Modified'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                                                 time.gmtime(os.path.getmtime(http_request.file_path)))
+                    else:
+                        headers['Content-Type'] = http_request.file_type
+                        headers['Content-Length'] = len(body)
+            if 'Cookie' not in request['headers'] or http_request.is_login:
+                rand = uuid.uuid4()
+                headers['Set-Cookie'] = 'session-id=' + str(rand)
+                local_cookie[http_request.username] = headers['Set-Cookie']
+                print("local_cookie", local_cookie)
+                cookie_time[http_request.username] = time.time()
+                print("cookie_time", cookie_time)
+            else:
+                headers['Cookie'] = request['headers']['Cookie']
+        if request['headers']['Connection'] == 'keep-alive':
+            headers['Connection'] = 'keep-alive'
         else:
-            headers['Cookie'] = request['headers']['Cookie']
-        headers['Connection'] = 'keep-alive'
+            headers['Connection'] = 'close'
         if status_code == 401:
             headers['WWW-Authenticate'] = 'Basic realm="Authorization Required"'
         headers['Date'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())
+        if 'Content-Length' not in headers:
+            headers['Content-Length'] = len(body)
         return headers
 
     def decode_url(self, s):
@@ -238,8 +247,7 @@ class HttpServer:
         return ''.join(result)
 
     def get_body(self, status_code, request, http_request):
-        if request['method'] == 'HEAD':
-            return 200, ''.encode('utf-8')
+
         if status_code == 410 or status_code == 401:
             with open('login.html', 'r') as f:
                 return 410, f.read().encode('utf-8')
@@ -352,7 +360,7 @@ class HttpServer:
                 os.rename(root_path, new_rootpath)
                 return 200, ''.encode('utf-8')
         else:
-            if request['method'] != 'GET':
+            if request['method'] != 'GET' and request['method'] != 'HEAD':
                 return 405, "".encode('utf-8')
             if request['path'] == '/':
                 return 200, ''.encode('utf-8')
@@ -387,7 +395,7 @@ class HttpServer:
                 return 200, html.encode('utf-8')
             if request['path'].split('?')[-1] == 'SUSTech-HTTP=1':
                 http_request.file_type = 'text/plain'
-                return 200, ('[ "' + '", "'.join(file_list) + '"]').encode('utf-8')
+                return 200, ("[ '" + "', '".join(file_list) + "']").encode('utf-8')
             return 400, "".encode('utf-8')
 
     def breakpoint_transmission(self, request, file_path, http_request):
@@ -419,7 +427,7 @@ class HttpServer:
                     data = file.read(end - start + 1)
                     response = {
                         'Content-Type': http_request.file_type,
-                        'Content-Range': f'bytes {start}-{end}/{os.path.getsize(file_path)}',
+                        'Content-Range': f'bytes= {start}-{end}/{os.path.getsize(file_path)}',
                         'body': data
                     }
                     responses.append(response)
@@ -472,6 +480,8 @@ class HttpServer:
             body = ''
             # if request['method'] == 'GET':
             code, body = self.get_body(status_code, request, http_request)
+            if request['method'] == 'HEAD':
+                body = b''
             if code == 406:
                 status_code, status_text = 406, 'Already Exist'
             elif code == 403:
