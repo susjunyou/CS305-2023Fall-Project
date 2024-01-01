@@ -125,9 +125,9 @@
         }
 
         input:checked + .slider:before {
-            -webkit-transform: translateX(16px);
-            -ms-transform: translateX(16px);
-            transform: translateX(16px);
+            -webkit-transform: translateX(20px);
+            -ms-transform: translateX(20px);
+            transform: translateX(20px);
         }
 
 
@@ -148,13 +148,13 @@
 </head>
 <body>
 <h1>Directory listing for{{path}}</h1>
-<!--<label class="chunked-label" style="margin-left: 65%"> Chunked Transfer: </label>-->
-<!--<label class="switch">-->
-<!--    <input type="checkbox" id="chunkedTransferSwitch">-->
-<!--    <span class="slider"></span>-->
-<!--</label>-->
+<label class="chunked-label" style="margin-left: 65%"> Chunked Transfer: </label>
+<label class="switch">
+    <input type="checkbox" id="chunkedTransferSwitch">
+    <span class="slider"></span>
+</label>
 <ul class="file-list" style="margin-top: 10px">
-    <li class="file-item"><a href="/?SUSTech-HTTP=0" class="file-link">/.</a></li>
+    <li class="file-item"><a href="/?SUSTech-HTTP=0" class="file-link">./</a></li>
     {{files}}
     <li class="file-item2">
         <input type="file" id="fileInput">
@@ -323,6 +323,26 @@
                 });
         }
     }
+
+    const chunkedTransferSwitch = document.getElementById('chunkedTransferSwitch');
+    const fileLinks = document.querySelectorAll('.file-link');
+    chunkedTransferSwitch.addEventListener('change', function () {
+        const isChunked = this.checked;
+        fileLinks.forEach(fileLink => {
+            let url = new URL(fileLink.getAttribute('href'), window.location.href);
+            if (url.searchParams.has('SUSTech-HTTP')) {
+
+            } else {
+                if (isChunked) {
+                    url.searchParams.set('chunked', '1');
+                } else {
+                    url.searchParams.delete('chunked');
+                }
+            }
+            fileLink.setAttribute('href', url.toString());
+            console.log(url.toString())
+        });
+    });
 </script>
 </body>
 </html>

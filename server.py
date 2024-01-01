@@ -13,8 +13,8 @@ from http_request import HttpRequest
 user_auth = {}
 local_cookie = {}
 cookie_time = {}
-max_file_size = 1024 * 1024 * 100
-chunk_size = 1024 * 1024 * 10
+max_file_size = 1024 * 1024 * 10
+chunk_size = 1024 * 1024 * 1
 cookie_time_out = 60 * 60 * 1
 
 
@@ -84,7 +84,7 @@ class HttpServer:
             parent_directory = os.path.abspath(os.path.join(url_path, os.pardir))[3:]
             # print("path222", parent_directory)
             files += '<li class="file-item">' \
-                     '<a href="{}" class="file-link">/..</a>' \
+                     '<a href="{}" class="file-link">../</a>' \
                      '</li>\n'.format("/" + parent_directory + "?SUSTech-HTTP=0")
         index = 0
         for file in os.listdir(path):
@@ -116,7 +116,7 @@ class HttpServer:
                          '<button class="delete-btn" onclick="renameFile({},{})" style="margin-right:10px">Rename</button>' \
                          '<button class="delete-btn" onclick="deleteDir({})">Delete</button>' \
                          '</div>' \
-                         '</li>\n'.format(url_path_1 + "?SUSTech-HTTP=0", '/' + file, str(index),
+                         '</li>\n'.format(url_path_1 + "?SUSTech-HTTP=0", file + '/', str(index),
                                           "'" + url_path_1.replace('\\', '/') + "'", str(index),
                                           "'" + url_path_1.replace('\\', '/') + "'")
             index = index + 1
@@ -264,6 +264,11 @@ class HttpServer:
                 root_path = os.path.join(root_path, part)
             if os.path.exists(root_path):
                 if os.path.isdir(root_path):
+                    for file in os.listdir(root_path):
+                        if os.path.isfile(os.path.join(root_path, file)):
+                            os.remove(os.path.join(root_path, file))
+                        else:
+                            os.rmdir(os.path.join(root_path, file))
                     os.rmdir(root_path)
                     return 200, ''.encode('utf-8')
                 elif os.path.isfile(root_path):
@@ -362,8 +367,6 @@ class HttpServer:
         else:
             if request['method'] != 'GET' and request['method'] != 'HEAD':
                 return 405, "".encode('utf-8')
-            if request['path'] == '/':
-                return 200, ''.encode('utf-8')
             root_path = "data"
             for path in paths:
                 root_path = os.path.join(root_path, path)
@@ -387,15 +390,19 @@ class HttpServer:
                         http_request.is_large_file = True
                         return 200, root_path
                     return 200, open(root_path, 'rb').read()
+
             if not os.path.exists(root_path):
                 return 404, ''.encode('utf-8')
+            if request['path'].split('?')[-1] != 'SUSTech-HTTP=0' and request['path'].split('?')[
+                -1] != 'SUSTech-HTTP=1':
+                request['path'] = request['path'] + '?SUSTech-HTTP=0'
             html, file_list = self.generate_html(root_path)
             if request['path'].split('?')[-1] == 'SUSTech-HTTP=0':
                 http_request.file_type = 'text/html'
                 return 200, html.encode('utf-8')
             if request['path'].split('?')[-1] == 'SUSTech-HTTP=1':
                 http_request.file_type = 'text/plain'
-                return 200, ("[ '" + "', '".join(file_list) + "']").encode('utf-8')
+                return 200, ("['" + "', '".join(file_list) + "']").encode('utf-8')
             return 400, "".encode('utf-8')
 
     def breakpoint_transmission(self, request, file_path, http_request):
@@ -427,7 +434,7 @@ class HttpServer:
                     data = file.read(end - start + 1)
                     response = {
                         'Content-Type': http_request.file_type,
-                        'Content-Range': f'bytes= {start}-{end}/{os.path.getsize(file_path)}',
+                        'Content-Range': f'bytes {start}-{end}/{os.path.getsize(file_path)}',
                         'body': data
                     }
                     responses.append(response)
@@ -465,85 +472,85 @@ class HttpServer:
 
     def handle_client(self, client_socket):
         while True:
-            # try:
-            request = self.parse_http_request(client_socket)
-            if request['method'] is None:
+            try:
+                request = self.parse_http_request(client_socket)
+                if request['method'] is None:
+                    break
+                http_request = HttpRequest()
+                if request['path'].find("%") is not None:
+                    request['path'] = self.decode_url(request['path'])
+                    request['path'] = request['path'].encode('iso-8859-1').decode('utf-8')
+                print("request method:", request['method'])
+                print("request path:", request['path'])
+                print("request header:", request['headers'])
+                status_code, status_text = self.get_status(request, http_request)
+                body = ''
+                # if request['method'] == 'GET':
+                code, body = self.get_body(status_code, request, http_request)
+                if request['method'] == 'HEAD':
+                    body = b''
+                if code == 406:
+                    status_code, status_text = 406, 'Already Exist'
+                elif code == 403:
+                    status_code, status_text = 403, 'Forbidden'
+                elif code == 404:
+                    status_code, status_text = 404, 'Not Found'
+                elif code == 405:
+                    status_code, status_text = 405, 'Method Not Allowed'
+                elif code == 400:
+                    status_code, status_text = 400, 'Bad Request'
+                elif code == 206:
+                    status_code, status_text = 206, 'Partial Content'
+                elif code == 200 and status_code == 408:
+                    status_code, status_text = 200, 'OK'
+                elif code == 410 and status_code == 408:
+                    status_code, status_text = 410, 'Gone'
+                headers = self.get_headers(request, status_code, body, http_request)
+                print("response status code", status_code)
+                print("response status text", status_text)
+                print("response headers", headers)
+                if http_request.is_chunked:
+                    # send headers
+                    client_socket.sendall(
+                        self.create_http_response(status_code=status_code, status_text=status_text, headers=headers,
+                                                  body=""))
+                    # client_socket.sendall(body)
+                    # send body by chunk( this body actually is a file path )
+                    with open(body, 'rb') as f:
+                        while True:
+                            data = f.read(chunk_size)
+                            if not data:
+                                break
+                            client_socket.sendall(f"{len(data):X}\r\n".encode())
+                            client_socket.sendall(data)
+                            client_socket.sendall(b"\r\n")
+                            if len(data) < chunk_size:
+                                break
+                        client_socket.sendall(b"0\r\n\r\n")
+                        http_request.is_chunked = False
+                elif http_request.is_large_file:
+                    client_socket.sendall(
+                        self.create_http_response(status_code=status_code, status_text=status_text, headers=headers,
+                                                  body=""))
+                    with open(body, 'rb') as f:
+                        while True:
+                            data = f.read(chunk_size)
+                            if not data:
+                                break
+                            client_socket.sendall(data)
+                            if len(data) < chunk_size:
+                                break
+                        http_request.is_large_file = False
+                else:
+                    response = self.create_http_response(status_code=status_code, status_text=status_text,
+                                                         headers=headers, body=body)
+                    client_socket.sendall(response)
+                    client_socket.sendall(body)
+                if request['headers'].get('Connection').lower() == 'close':
+                    break
+            except Exception as e:
+                print(f"Error handling request: {e}")
                 break
-            http_request = HttpRequest()
-            if request['path'].find("%") is not None:
-                request['path'] = self.decode_url(request['path'])
-                request['path'] = request['path'].encode('iso-8859-1').decode('utf-8')
-            print("request method:", request['method'])
-            print("request path:", request['path'])
-            print("request header:", request['headers'])
-            status_code, status_text = self.get_status(request, http_request)
-            body = ''
-            # if request['method'] == 'GET':
-            code, body = self.get_body(status_code, request, http_request)
-            if request['method'] == 'HEAD':
-                body = b''
-            if code == 406:
-                status_code, status_text = 406, 'Already Exist'
-            elif code == 403:
-                status_code, status_text = 403, 'Forbidden'
-            elif code == 404:
-                status_code, status_text = 404, 'Not Found'
-            elif code == 405:
-                status_code, status_text = 405, 'Method Not Allowed'
-            elif code == 400:
-                status_code, status_text = 400, 'Bad Request'
-            elif code == 206:
-                status_code, status_text = 206, 'Partial Content'
-            elif code == 200 and status_code == 408:
-                status_code, status_text = 200, 'OK'
-            elif code == 410 and status_code == 408:
-                status_code, status_text = 410, 'Gone'
-            headers = self.get_headers(request, status_code, body, http_request)
-            print("response status code", status_code)
-            print("response status text", status_text)
-            print("response headers", headers)
-            if http_request.is_chunked:
-                # send headers
-                client_socket.sendall(
-                    self.create_http_response(status_code=status_code, status_text=status_text, headers=headers,
-                                              body=""))
-                # client_socket.sendall(body)
-                # send body by chunk( this body actually is a file path )
-                with open(body, 'rb') as f:
-                    while True:
-                        data = f.read(chunk_size)
-                        if not data:
-                            break
-                        client_socket.sendall(f"{len(data):X}\r\n".encode())
-                        client_socket.sendall(data)
-                        client_socket.sendall(b"\r\n")
-                        if len(data) < chunk_size:
-                            break
-                    client_socket.sendall(b"0\r\n\r\n")
-                    http_request.is_chunked = False
-            elif http_request.is_large_file:
-                client_socket.sendall(
-                    self.create_http_response(status_code=status_code, status_text=status_text, headers=headers,
-                                              body=""))
-                with open(body, 'rb') as f:
-                    while True:
-                        data = f.read(chunk_size)
-                        if not data:
-                            break
-                        client_socket.sendall(data)
-                        if len(data) < chunk_size:
-                            break
-                    http_request.is_large_file = False
-            else:
-                response = self.create_http_response(status_code=status_code, status_text=status_text,
-                                                     headers=headers, body=body)
-                client_socket.sendall(response)
-                client_socket.sendall(body)
-            if request['headers'].get('Connection').lower() == 'close':
-                break
-        # except Exception as e:
-        #     print(f"Error handling request: {e}")
-        #     break
         client_socket.close()
 
 
