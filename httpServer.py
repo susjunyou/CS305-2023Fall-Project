@@ -9,7 +9,7 @@ import mimetypes
 
 
 from jinja2 import Template
-from cryptography.hazmat.primitives import serialization
+
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -342,7 +342,7 @@ class HttpServer:
                     break
             if post_user != http_request.username:
                 return 403, 'Forbidden'.encode('utf-8')  # 没body的吧
-            root_path = "date"
+            root_path = "data"
             for parts in post_paths:
                 root_path = os.path.join(root_path, parts)
             # 还要加入 filename, body 还不会解析
@@ -420,7 +420,7 @@ class HttpServer:
         else:
             if request['method'] != 'GET':
                 return 405, "Method Not Allowed".encode('utf-8')
-            root_path = "date"
+            root_path = "data"
             for path in paths:
                 root_path = os.path.join(root_path, path)
             print("root_path", root_path)
