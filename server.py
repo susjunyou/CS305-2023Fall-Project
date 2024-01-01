@@ -267,6 +267,14 @@ class HttpServer:
         if path == '/check':
             return 200, ''.encode('utf-8')
         if request['method'] == 'DELE':
+            post_paths = request['path'].split("/")
+            post_user = ''
+            for parts in post_paths:
+                if parts != '':
+                    post_user = parts
+                    break
+            if post_user != http_request.username:
+                return 403, ''.encode('utf-8')  # 没body的吧
             root_path = "data"
             for part in paths:
                 root_path = os.path.join(root_path, part)
@@ -274,12 +282,6 @@ class HttpServer:
                 if os.path.isdir(root_path):
                     self.remove_dir(root_path)
                     os.rmdir(root_path)
-                    # for file in os.listdir(root_path):
-                    #     if os.path.isfile(os.path.join(root_path, file)):
-                    #         os.remove(os.path.join(root_path, file))
-                    #     else:
-                    #         os.rmdir(os.path.join(root_path, file))
-                    # os.rmdir(root_path)
                     return 200, ''.encode('utf-8')
                 elif os.path.isfile(root_path):
                     os.remove(root_path)
