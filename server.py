@@ -246,6 +246,14 @@ class HttpServer:
             result.append(chr(i) + part[2:])
         return ''.join(result)
 
+    def remove_dir(self, root_path):
+        for file in os.listdir(root_path):
+            if os.path.isdir(os.path.join(root_path, file)):
+                self.remove_dir(os.path.join(root_path, file))
+                os.rmdir(os.path.join(root_path, file))
+            else:
+                os.remove(os.path.join(root_path, file))
+
     def get_body(self, status_code, request, http_request):
 
         if status_code == 410 or status_code == 401:
@@ -264,12 +272,14 @@ class HttpServer:
                 root_path = os.path.join(root_path, part)
             if os.path.exists(root_path):
                 if os.path.isdir(root_path):
-                    for file in os.listdir(root_path):
-                        if os.path.isfile(os.path.join(root_path, file)):
-                            os.remove(os.path.join(root_path, file))
-                        else:
-                            os.rmdir(os.path.join(root_path, file))
+                    self.remove_dir(root_path)
                     os.rmdir(root_path)
+                    # for file in os.listdir(root_path):
+                    #     if os.path.isfile(os.path.join(root_path, file)):
+                    #         os.remove(os.path.join(root_path, file))
+                    #     else:
+                    #         os.rmdir(os.path.join(root_path, file))
+                    # os.rmdir(root_path)
                     return 200, ''.encode('utf-8')
                 elif os.path.isfile(root_path):
                     os.remove(root_path)
